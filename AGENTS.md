@@ -23,6 +23,13 @@ auth-sandbox/
 │   ├── model.c4          # System model: actors, components, relationships
 │   ├── deployment.c4     # Deployment topology (Kubernetes pods)
 │   └── views.c4          # Architecture views (index, deployment, dynamic)
+├── keycloak/             # Kubernetes manifests for Keycloak and its database
+│   ├── namespace.yaml        # keycloak namespace
+│   ├── postgres-secret.yaml  # PostgreSQL credentials (dev only)
+│   ├── keycloak-secret.yaml  # Keycloak admin credentials (dev only)
+│   ├── postgres.yaml         # PostgreSQL PVC, Deployment, Service
+│   ├── keycloak.yaml         # Keycloak Deployment, Service
+│   └── ingress.yaml          # Ingress rule → keycloak.localhost
 └── project.md            # Minimal project note
 ```
 
@@ -186,6 +193,37 @@ When adding a new service or language, update this file with:
 ## Infrastructure Notes
 
 - Local cluster runs on **Podman** with **Kind** (`podman_kind` in the deployment model)
+- Podman machine name: `auth-sandbox` (4 CPUs, 4 GiB RAM, 60 GiB disk, rootful mode)
+- Kind cluster name: `auth-sandbox` — kubectl context: `kind-auth-sandbox`
 - Four pods: `keycloak`, `device_login`, `keycloak_postgres_db`, `device_postgres_db`
 - Each service connects only to its own database pod (no cross-service DB access)
 - Keycloak's custom extension (`device_token_ext`) is the only integration point between `device_login` and Keycloak
+
+### Cluster Setup Commands
+
+```bash
+# Start the Podman machine (after a reboot)
+podman machine start auth-sandbox
+
+# Apply all Keycloak manifests
+kubectl apply -f keycloak/ --context kind-auth-sandbox
+
+# Access Keycloak locally via port-forward
+kubectl port-forward -n keycloak svc/keycloak 8080:80 --context kind-auth-sandbox
+# Then open: http://keycloak.localhost:8080  (admin / admin-password)
+
+# Alternatively, use the ingress NodePort directly
+# NodePort 80 → 30489 on the Kind node IP (10.89.0.2 by default)
+```
+
+### Ingress
+
+- Ingress class: `nginx` (ingress-nginx installed in `ingress-nginx` namespace)
+- Hostname: `keycloak.localhost`
+- The Kind cluster was created without host port-mapping, so the ingress is reached via
+  `kubectl port-forward` on the ingress-nginx controller, or directly via the NodePort.
+- To reach `keycloak.localhost` transparently, add to `/etc/hosts`:
+  ```
+  127.0.0.1  keycloak.localhost
+  ```
+  Then run: `kubectl port-forward -n ingress-nginx svc/ingress-nginx-controller 80:80 --context kind-auth-sandbox`
