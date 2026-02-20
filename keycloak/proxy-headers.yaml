@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keycloak-proxy-headers
+  namespace: keycloak
+data:
+  X-Forwarded-Port: "8443"
+  X-Forwarded-Proto: "https"
