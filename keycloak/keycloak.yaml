@@ -21,7 +21,7 @@ spec:
           args:
             - start-dev
             - --proxy-headers=xforwarded
-            - --hostname=https://keycloak.localhost
+            - --hostname=keycloak.localhost
             - --hostname-strict=false
           ports:
             - containerPort: 8080
