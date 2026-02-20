@@ -1,0 +1,18 @@
+deployment {
+    podman_kind = kubernetes_cluster {
+        pod keycloak {
+            instanceOf keycloak
+            -> keycloak_postgres_db
+        }
+        pod device_login {
+            instanceOf device_login
+            -> device_postgres_db
+        }
+        pod device_postgres_db {
+            instanceOf device_login.device_db
+        }
+        pod keycloak_postgres_db {
+            instanceOf keycloak.user_db
+        }
+    }
+}

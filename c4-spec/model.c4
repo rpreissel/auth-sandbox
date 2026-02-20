@@ -1,0 +1,40 @@
+model {
+    user = actor
+
+    mobile_app = mobileapp {
+        description "Mobile application for users"
+        keystore = database {
+            description "Stores cryptographic keys for secure communication"
+        }
+        login = component {
+            -> device_login "Login functionality" {
+                description '''
+                Handles user authentication via device login flow.
+                '''
+            }
+        }
+    }
+
+    device_login = backend {
+        description "Backend for device login"
+        -> keycloak.device_token_ext "Exchange device token to OIDC tokens" {
+            description '''            
+            Manages device tokens for authentication.
+            '''         
+        }
+
+        device_db = database
+
+    }
+
+    keycloak = backend {
+        description "Identity and Access Management"
+        device_token_ext = kc_extension {
+            
+        }
+        
+        user_db = database
+    }
+
+    
+}

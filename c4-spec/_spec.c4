@@ -1,0 +1,38 @@
+specification {
+    element actor {
+        style {
+            shape person
+        }
+    }
+    element backend
+    element system
+    element component
+    element kc_extension {
+        style {
+            shape component
+        }
+    }
+    element kc_idp {
+        style {
+            shape component
+        }
+    }
+    element webapp {
+        style {
+            shape browser
+        }
+    }
+    element mobileapp {
+        style {
+            shape mobile
+        }
+    }
+    element database {
+        style {
+            shape storage
+        }
+    }
+
+    deploymentNode pod
+    deploymentNode kubernetes_cluster 
+}

@@ -1,0 +1,39 @@
+views {
+    
+    view index {
+        include *
+    }
+
+    deployment view deployment {
+        title 'Deployment View'
+        
+        include podman_kind.*
+    } 
+
+    dynamic view app_login {
+        title 'App Login Flow'
+        
+        user 
+            -> mobile_app.login "Initiates login process"
+    
+            -> device_login "starts login process"
+            -> mobile_app.login "retrurns a challenge"
+            -> mobile_app.keystore "requests signature for challenge"
+            -> user "biometric authentication or PIN entry"
+            -> mobile_app.keystore "signs challenge with user's key"
+            -> mobile_app.login "sends signed challenge back to device login"
+            -> device_login "verifies signature and issues jwt-token"
+            -> keycloak.device_token_ext "exchanges device token for OIDC tokens" {
+                description '''
+                Code Auth Flow with Device Jwt Tokens
+                '''
+            }
+            -> device_login "returns OIDC tokens "
+            -> mobile_app.login "receives OIDC tokens and completes login"
+            -> user "is now authenticated and can access the app"
+
+
+
+        include user, mobile_app, mobile_app.login, mobile_app.keystore, device_login, keycloak._
+    }
+}
