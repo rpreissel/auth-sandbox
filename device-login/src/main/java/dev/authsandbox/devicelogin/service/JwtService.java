@@ -38,6 +38,7 @@ public class JwtService {
                 .subject(deviceId)
                 .issuer(jwtProperties.issuer())
                 .audience().add(keycloakProperties.realmUrl()).and()
+                .claim("azp", keycloakProperties.clientId())
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(expiry))
                 .signWith(jwtKeyPair.getPrivate(), Jwts.SIG.RS256)

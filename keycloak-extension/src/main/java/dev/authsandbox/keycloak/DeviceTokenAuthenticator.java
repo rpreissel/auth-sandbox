@@ -65,6 +65,19 @@ public class DeviceTokenAuthenticator implements Authenticator {
             authorizationGrantContext.validateIssuer();
             authorizationGrantContext.validateSubject();
 
+            // Validate that the token was issued for the requesting client (azp claim).
+            // This prevents a login_token issued for client A from being used by client B,
+            // even if client B shares the same authentication flow.
+            // Keycloak maps the JWT "azp" claim to JsonWebToken.issuedFor — not to otherClaims.
+            String requestingClientId = context.getAuthenticationSession().getClient().getClientId();
+            String tokenAzp = authorizationGrantContext.getJWT().getIssuedFor();
+            if (tokenAzp == null || !tokenAzp.equals(requestingClientId)) {
+                LOG.warnf("login_token azp='%s' does not match requesting client '%s'",
+                        tokenAzp, requestingClientId);
+                context.failure(AuthenticationFlowError.INVALID_CREDENTIALS);
+                return;
+            }
+
             // Resolve the IdP from the issuer claim — same call as JWTAuthorizationGrantType.
             String jwtIssuer = authorizationGrantContext.getIssuer();
             LOG.debugf("login_token issuer: '%s'", jwtIssuer);
