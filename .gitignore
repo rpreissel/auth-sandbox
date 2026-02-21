@@ -1,0 +1,24 @@
+# Secrets / environment files
+.env
+
+# JWT key pairs (generated per environment — never commit)
+device-login/keys/
+
+# Caddy TLS data
+caddy-data/
+
+# Build artefacts
+*.class
+*.jar
+target/
+build/
+bin/
+
+# Gradle wrapper cache
+.gradle/
+
+# IDE files
+.classpath
+.project
+.factorypath
+.settings/

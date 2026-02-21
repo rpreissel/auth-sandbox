@@ -1,0 +1,30 @@
+# keycloak.localhost reverse proxy with automatic TLS (self-signed for localhost)
+keycloak.localhost:443 {
+    tls internal
+
+    # Increase buffer sizes for Keycloak's large OIDC responses
+    reverse_proxy keycloak:8080 {
+        header_up X-Forwarded-Proto "https"
+        header_up X-Forwarded-Port  "8443"
+        flush_interval -1
+    }
+}
+
+# Redirect plain HTTP to HTTPS
+keycloak.localhost:80 {
+    redir https://keycloak.localhost:8443{uri} permanent
+}
+
+# device-login.localhost reverse proxy
+device-login.localhost:443 {
+    tls internal
+
+    reverse_proxy device-login:8081 {
+        header_up X-Forwarded-Proto "https"
+        header_up X-Forwarded-Port  "8443"
+    }
+}
+
+device-login.localhost:80 {
+    redir https://device-login.localhost:8443{uri} permanent
+}

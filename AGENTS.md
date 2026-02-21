@@ -8,9 +8,7 @@ Guidance for AI coding agents working in this repository.
 
 This is a **greenfield mobile authentication project** at the architecture specification stage. The intended system implements an OAuth2-style Device Authorization Grant flow using Keycloak as the Identity Provider (IAM), a custom Device Login backend, and a mobile app with a local cryptographic keystore (biometric/PIN-protected).
 
-**Infrastructure target:** Podman + Kind (Kubernetes-in-Docker) running locally.
-
-No application code exists yet. The repository currently contains only C4 architecture diagrams.
+**Infrastructure target:** Podman Compose (local development) — previously Kind/Kubernetes, migrated to `podman compose`.
 
 ---
 
@@ -23,13 +21,28 @@ auth-sandbox/
 │   ├── model.c4          # System model: actors, components, relationships
 │   ├── deployment.c4     # Deployment topology (Kubernetes pods)
 │   └── views.c4          # Architecture views (index, deployment, dynamic)
-├── keycloak/             # Kubernetes manifests for Keycloak and its database
+├── device-login/         # Spring Boot 3 / Java 21 backend service
+│   ├── Dockerfile            # Multi-stage build (Gradle + Temurin JRE)
+│   ├── build.gradle          # Gradle build config
+│   ├── keys/                 # RSA PEM key pair for JWT signing (not committed)
+│   │   ├── private.pem
+│   │   └── public.pem
+│   ├── k8s/                  # Legacy Kubernetes manifests (reference only)
+│   └── src/                  # Application source
+├── keycloak/             # Legacy Kubernetes manifests (kept for reference)
 │   ├── namespace.yaml        # keycloak namespace
 │   ├── postgres-secret.yaml  # PostgreSQL credentials (dev only)
 │   ├── keycloak-secret.yaml  # Keycloak admin credentials (dev only)
 │   ├── postgres.yaml         # PostgreSQL PVC, Deployment, Service
 │   ├── keycloak.yaml         # Keycloak Deployment, Service
-│   └── ingress.yaml          # Ingress rule → keycloak.localhost
+│   ├── ingress.yaml          # Ingress rule → keycloak.localhost
+│   ├── cluster-issuer.yaml   # cert-manager ClusterIssuer (self-signed CA)
+│   └── proxy-headers.yaml    # ConfigMap for nginx proxy headers
+├── compose.yml           # Podman Compose stack (postgres + keycloak + device-login + caddy)
+├── Caddyfile             # Caddy reverse proxy config (TLS termination for *.localhost)
+├── postgres-init/        # SQL/shell scripts run by postgres on first start
+│   └── 01-device-login.sh    # Creates device_login user + schema
+├── .env                  # Local secrets — NOT committed to git
 └── project.md            # Minimal project note
 ```
 
@@ -144,7 +157,7 @@ The project will likely grow to include the following services (based on the arc
 - **Mobile app** — likely React Native or Flutter
 - **Device Login backend** — likely a Go, Rust, or JVM (Kotlin/Java) service
 - **Keycloak extension** — Java/Kotlin (standard Keycloak SPI)
-- **Infrastructure** — Podman + Kind + Kubernetes manifests or Helm charts
+- **Infrastructure** — Podman Compose (`compose.yml`) with Caddy as TLS-terminating reverse proxy
 
 When adding a new service or language, update this file with:
 1. The language/framework chosen
@@ -192,38 +205,59 @@ When adding a new service or language, update this file with:
 
 ## Infrastructure Notes
 
-- Local cluster runs on **Podman** with **Kind** (`podman_kind` in the deployment model)
-- Podman machine name: `auth-sandbox` (4 CPUs, 4 GiB RAM, 60 GiB disk, rootful mode)
-- Kind cluster name: `auth-sandbox` — kubectl context: `kind-auth-sandbox`
-- Four pods: `keycloak`, `device_login`, `keycloak_postgres_db`, `device_postgres_db`
-- Each service connects only to its own database pod (no cross-service DB access)
+- Local stack runs with **Podman Compose** (`compose.yml`)
+- Three services: `postgres`, `keycloak`, `caddy`
+- **Single PostgreSQL instance, two schemas:** `public` (Keycloak default) and `device_login` (device-login service)
+- `postgres-init/01-device-login.sh` runs on first DB start and creates the `device_login` user + schema
+- Caddy handles TLS termination for `keycloak.localhost` (self-signed certificate via `tls internal`)
+- Each future service gets its own schema inside the shared DB (no separate DB containers)
 - Keycloak's custom extension (`device_token_ext`) is the only integration point between `device_login` and Keycloak
 
-### Cluster Setup Commands
+### Stack Setup Commands
 
 ```bash
-# Start the Podman machine (after a reboot)
-podman machine start auth-sandbox
+# Copy and adjust secrets
+cp .env.example .env   # if provided; otherwise edit .env directly
 
-# Apply all Keycloak manifests
-kubectl apply -f keycloak/ --context kind-auth-sandbox
+# Start all services
+podman compose up -d
 
-# Access Keycloak locally via port-forward
-kubectl port-forward -n keycloak svc/keycloak 8080:80 --context kind-auth-sandbox
-# Then open: http://keycloak.localhost:8080  (admin / admin-password)
+# Stop all services
+podman compose down
 
-# Alternatively, use the ingress NodePort directly
-# NodePort 80 → 30489 on the Kind node IP (10.89.0.2 by default)
+# View logs
+podman compose logs -f keycloak
 ```
 
-### Ingress
+### Access
 
-- Ingress class: `nginx` (ingress-nginx installed in `ingress-nginx` namespace)
-- Hostname: `keycloak.localhost`
-- The Kind cluster was created without host port-mapping, so the ingress is reached via
-  `kubectl port-forward` on the ingress-nginx controller, or directly via the NodePort.
-- To reach `keycloak.localhost` transparently, add to `/etc/hosts`:
+- Keycloak Admin UI: **https://keycloak.localhost:8443** (admin / admin-password)
+- device-login API: **https://device-login.localhost:8443**
+- Caddy issues a self-signed certificate automatically; add a trust exception in your browser
+- Add to `/etc/hosts` if not already resolved:
   ```
   127.0.0.1  keycloak.localhost
+  127.0.0.1  device-login.localhost
   ```
-  Then run: `kubectl port-forward -n ingress-nginx svc/ingress-nginx-controller 80:80 --context kind-auth-sandbox`
+
+### Secrets (`.env`)
+
+The `.env` file is **not committed** (listed in `.gitignore`). Required variables:
+
+| Variable | Description |
+|---|---|
+| `POSTGRES_DB` | Keycloak database name |
+| `POSTGRES_USER` | PostgreSQL username for Keycloak |
+| `POSTGRES_PASSWORD` | PostgreSQL password for Keycloak |
+| `KEYCLOAK_ADMIN` | Keycloak admin username |
+| `KEYCLOAK_ADMIN_PASSWORD` | Keycloak admin password |
+| `DEVICE_POSTGRES_USER` | PostgreSQL username for device-login (schema: `device_login`) |
+| `DEVICE_POSTGRES_PASSWORD` | PostgreSQL password for device-login |
+| `JWT_ISSUER` | JWT `iss` claim for device tokens |
+| `JWT_EXPIRATION_SECONDS` | Device token TTL (default: 300) |
+| `CHALLENGE_EXPIRATION_SECONDS` | Challenge TTL (default: 120) |
+
+### Legacy Kubernetes Manifests
+
+The `keycloak/` directory contains the original Kubernetes manifests and is kept for reference only.
+Do **not** apply them to the local environment — use `compose.yml` instead.
