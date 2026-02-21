@@ -28,3 +28,24 @@ device-login.localhost:443 {
 device-login.localhost:80 {
     redir https://device-login.localhost:8443{uri} permanent
 }
+
+# app-mock.localhost — mobile app mock UI
+# /api/* is proxied to device-login so the browser stays same-origin (no CORS)
+app-mock.localhost:443 {
+    tls internal
+
+    handle /api/* {
+        reverse_proxy device-login:8081 {
+            header_up X-Forwarded-Proto "https"
+            header_up X-Forwarded-Port  "8443"
+        }
+    }
+
+    handle {
+        reverse_proxy app-mock:80
+    }
+}
+
+app-mock.localhost:80 {
+    redir https://app-mock.localhost:8443{uri} permanent
+}
