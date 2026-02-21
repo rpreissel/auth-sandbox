@@ -1,6 +1,7 @@
 package dev.authsandbox.devicelogin.controller;
 
 import dev.authsandbox.devicelogin.dto.ErrorResponse;
+import dev.authsandbox.devicelogin.service.KeycloakUpstreamException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -26,6 +27,13 @@ public class GlobalExceptionHandler {
         log.warn("Security violation: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
                 new ErrorResponse(401, "Unauthorized", ex.getMessage()));
+    }
+
+    @ExceptionHandler(KeycloakUpstreamException.class)
+    public ResponseEntity<ErrorResponse> handleKeycloakUpstream(KeycloakUpstreamException ex) {
+        log.error("Keycloak upstream error: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(
+                new ErrorResponse(502, "Bad Gateway", "Authentication service unavailable"));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

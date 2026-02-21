@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class DeviceService {
 
     private final DeviceRepository deviceRepository;
+    private final KeycloakAdminClient keycloakAdminClient;
 
     @Transactional
     public RegisterDeviceResponse registerDevice(RegisterDeviceRequest request) {
@@ -23,13 +24,16 @@ public class DeviceService {
                     "Device already registered: " + request.deviceId());
         }
 
+        String keycloakUserId = keycloakAdminClient.createUserWithFederatedIdentity(request.deviceId());
+
         Device device = Device.builder()
                 .deviceId(request.deviceId())
                 .publicKey(request.publicKey())
+                .keycloakUserId(keycloakUserId)
                 .build();
 
         deviceRepository.save(device);
-        log.info("Registered new device '{}'", request.deviceId());
+        log.info("Registered new device '{}' (keycloak user: {})", request.deviceId(), keycloakUserId);
 
         return new RegisterDeviceResponse(request.deviceId(), "Device registered successfully");
     }

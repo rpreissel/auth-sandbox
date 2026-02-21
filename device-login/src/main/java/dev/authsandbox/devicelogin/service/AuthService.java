@@ -1,7 +1,7 @@
 package dev.authsandbox.devicelogin.service;
 
 import dev.authsandbox.devicelogin.config.ChallengeProperties;
-import dev.authsandbox.devicelogin.config.JwtProperties;
+import dev.authsandbox.devicelogin.dto.KeycloakTokenResponse;
 import dev.authsandbox.devicelogin.dto.StartLoginRequest;
 import dev.authsandbox.devicelogin.dto.StartLoginResponse;
 import dev.authsandbox.devicelogin.dto.VerifyChallengeRequest;
@@ -32,8 +32,8 @@ public class AuthService {
     private final DeviceRepository deviceRepository;
     private final ChallengeRepository challengeRepository;
     private final JwtService jwtService;
+    private final KeycloakAuthClient keycloakAuthClient;
     private final ChallengeProperties challengeProperties;
-    private final JwtProperties jwtProperties;
 
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
@@ -98,10 +98,20 @@ public class AuthService {
         challenge.setUsed(true);
         challengeRepository.save(challenge);
 
-        String token = jwtService.issueDeviceToken(device.getDeviceId());
-        log.info("Issued device token for device '{}'", device.getDeviceId());
+        String loginToken = jwtService.issueLoginAssertionToken(device.getDeviceId());
+        log.debug("Issued login assertion token for device '{}'", device.getDeviceId());
 
-        return new VerifyChallengeResponse(token, jwtProperties.expirationSeconds(), "Bearer");
+        KeycloakTokenResponse kcTokens = keycloakAuthClient.authenticate(loginToken);
+        log.info("Authentication successful for device '{}'", device.getDeviceId());
+
+        return new VerifyChallengeResponse(
+                kcTokens.accessToken(),
+                kcTokens.idToken(),
+                kcTokens.refreshToken(),
+                kcTokens.expiresIn(),
+                kcTokens.tokenType(),
+                kcTokens.scope()
+        );
     }
 
     private boolean verifySignature(String publicKeyPem, String challengeValue, String signatureBase64) {
@@ -115,7 +125,7 @@ public class AuthService {
             KeyFactory kf = KeyFactory.getInstance("RSA");
             PublicKey publicKey = kf.generatePublic(spec);
 
-            byte[] signatureBytes = Base64.getDecoder().decode(signatureBase64);
+            byte[] signatureBytes = Base64.getUrlDecoder().decode(signatureBase64);
 
             Signature sig = Signature.getInstance("SHA256withRSA");
             sig.initVerify(publicKey);

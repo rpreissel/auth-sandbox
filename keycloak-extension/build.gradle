@@ -1,0 +1,38 @@
+plugins {
+    id 'java'
+}
+
+group = 'dev.authsandbox'
+version = '0.1.0'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+ext {
+    keycloakVersion = '26.5.0'
+}
+
+dependencies {
+    // Keycloak SPI interfaces — provided at runtime by Keycloak itself
+    compileOnly "org.keycloak:keycloak-server-spi:${keycloakVersion}"
+    compileOnly "org.keycloak:keycloak-server-spi-private:${keycloakVersion}"
+    compileOnly "org.keycloak:keycloak-services:${keycloakVersion}"
+    compileOnly "org.keycloak:keycloak-core:${keycloakVersion}"
+}
+
+// Build a fat JAR so Keycloak can pick it up as a single file from /opt/keycloak/providers/
+jar {
+    manifest {
+        attributes(
+            'Implementation-Title': 'device-token-authenticator',
+            'Implementation-Version': version
+        )
+    }
+}

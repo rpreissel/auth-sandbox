@@ -25,6 +25,9 @@ public class Device {
     @Column(name = "public_key", nullable = false, columnDefinition = "TEXT")
     private String publicKey;
 
+    @Column(name = "keycloak_user_id", length = 36)
+    private String keycloakUserId;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 

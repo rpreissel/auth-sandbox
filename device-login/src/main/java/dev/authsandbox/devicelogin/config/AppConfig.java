@@ -11,7 +11,7 @@ import java.security.PrivateKey;
 import java.security.PublicKey;
 
 @Configuration
-@EnableConfigurationProperties({JwtProperties.class, ChallengeProperties.class})
+@EnableConfigurationProperties({JwtProperties.class, ChallengeProperties.class, KeycloakProperties.class, KeycloakAdminProperties.class})
 public class AppConfig {
 
     @Bean
