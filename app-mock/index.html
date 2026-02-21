@@ -520,9 +520,26 @@
     <div class="card-body">
       <p class="hint" style="margin-bottom:1rem">
         Beim ersten Start generiert die App ein RSA-Schlüsselpaar. Der Public Key wird zusammen
-        mit der Device ID beim Backend registriert. Der Private Key verbleibt im Keystore des Geräts
-        (simuliert durch <code>crypto.subtle</code>).
+        mit der Device ID, der vorbelgten User-ID, dem Namen und dem Freischaltcode beim Backend
+        registriert. Der Private Key verbleibt im Keystore des Geräts (simuliert durch
+        <code>crypto.subtle</code>).
       </p>
+
+      <!-- Registration identity fields -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:.75rem; margin-bottom:1rem;">
+        <div class="field">
+          <label>User-ID <span style="color:var(--error)">*</span></label>
+          <input type="text" id="reg-user-id" placeholder="Vom Admin vorab bereitgestellt" />
+        </div>
+        <div class="field">
+          <label>Name <span style="color:var(--error)">*</span></label>
+          <input type="text" id="reg-name" placeholder="Vollständiger Name" />
+        </div>
+        <div class="field" style="grid-column:1/-1">
+          <label>Freischaltcode <span style="color:var(--error)">*</span></label>
+          <input type="text" id="reg-activation-code" placeholder="Vom Admin erhaltenes Passwort" autocomplete="off" />
+        </div>
+      </div>
 
       <div class="device-info-grid" id="key-info" style="display:none; margin-bottom:1rem;">
         <div class="info-cell">
@@ -914,14 +931,28 @@ async function registerDevice() {
   if (!id) { log('✗ Keine Device ID konfiguriert.', 'err'); return; }
   if (!state.publicPem) { log('✗ Kein Public Key vorhanden.', 'err'); return; }
 
+  const userId = ($('reg-user-id').value || '').trim();
+  const name   = ($('reg-name').value   || '').trim();
+  const code   = ($('reg-activation-code').value || '').trim();
+
+  if (!userId) { log('✗ User-ID fehlt.', 'err'); return; }
+  if (!name)   { log('✗ Name fehlt.', 'err');    return; }
+  if (!code)   { log('✗ Freischaltcode fehlt.', 'err'); return; }
+
   setGlobalStatus('Registriere…', 'pending');
   setBadge(1, '');
   try {
     const resp = await apiPost('/api/v1/devices/register', {
-      deviceId:  id,
-      publicKey: state.publicPem,
+      deviceId:       id,
+      userId:         userId,
+      name:           name,
+      activationCode: code,
+      publicKey:      state.publicPem,
     });
     state.registered = true;
+
+    // Clear the activation code from the UI immediately after use.
+    $('reg-activation-code').value = '';
 
     log(`✓ ${resp.message} (deviceId: ${resp.deviceId})`, 'ok');
     setFlowStep('reg', 'done');
@@ -1059,6 +1090,10 @@ function resetAll() {
   state.challenge  = null;
   state.signature  = null;
   state.tokens     = null;
+
+  $('reg-user-id').value         = '';
+  $('reg-name').value            = '';
+  $('reg-activation-code').value = '';
 
   $('key-info').style.display           = 'none';
   $('challenge-display').style.display  = 'none';

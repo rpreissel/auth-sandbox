@@ -14,6 +14,7 @@ import java.util.Map;
 
 @Service
 @Slf4j
+@SuppressWarnings("null")
 public class KeycloakAdminClient {
 
     private final KeycloakAdminProperties adminProperties;
@@ -40,6 +41,29 @@ public class KeycloakAdminClient {
         linkFederatedIdentity(adminToken, userId, deviceId);
         log.info("Created Keycloak user '{}' with federated identity for device '{}'", userId, deviceId);
         return userId;
+    }
+
+    /**
+     * Deletes a Keycloak user by their Keycloak user ID (UUID).
+     *
+     * @param keycloakUserId the Keycloak-internal user UUID
+     */
+    public void deleteUser(String keycloakUserId) {
+        String adminToken = getAdminToken();
+        String userUrl = adminProperties.baseUrl() + "/admin/realms/"
+                + adminProperties.realm() + "/users/" + keycloakUserId;
+
+        restClient.delete()
+                .uri(userUrl)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                .retrieve()
+                .onStatus(status -> !status.is2xxSuccessful(), (req, resp) -> {
+                    throw new KeycloakUpstreamException(
+                            "Failed to delete Keycloak user '" + keycloakUserId + "': " + resp.getStatusCode());
+                })
+                .toBodilessEntity();
+
+        log.info("Deleted Keycloak user '{}'", keycloakUserId);
     }
 
     // -----------------------------------------------------------------------

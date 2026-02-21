@@ -49,3 +49,24 @@ app-mock.localhost:443 {
 app-mock.localhost:80 {
     redir https://app-mock.localhost:8443{uri} permanent
 }
+
+# admin.localhost — admin UI
+# /api/* is proxied to device-login (admin endpoints require Basic Auth)
+admin.localhost:443 {
+    tls internal
+
+    handle /api/* {
+        reverse_proxy device-login:8081 {
+            header_up X-Forwarded-Proto "https"
+            header_up X-Forwarded-Port  "8443"
+        }
+    }
+
+    handle {
+        reverse_proxy admin-mock:80
+    }
+}
+
+admin.localhost:80 {
+    redir https://admin.localhost:8443{uri} permanent
+}

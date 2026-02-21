@@ -37,6 +37,10 @@ management:
       show-details: always
 
 app:
+  admin:
+    username: ${KEYCLOAK_ADMIN:admin}
+    password: ${KEYCLOAK_ADMIN_PASSWORD:admin-password}
+
   jwt:
     private-key-path: ${JWT_PRIVATE_KEY_PATH:/etc/device-login/keys/private.pem}
     public-key-path: ${JWT_PUBLIC_KEY_PATH:/etc/device-login/keys/public.pem}

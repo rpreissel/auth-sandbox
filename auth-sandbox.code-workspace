@@ -1,0 +1,17 @@
+{
+    "folders": [
+        {
+            "name": "device-login",
+            "path": "device-login"
+        },
+        {
+            "name": "keycloak-extension",
+            "path": "keycloak-extension"
+        },
+        {
+            "name": "auth-sandbox (root)",
+            "path": "."
+        }
+    ],
+    "settings": {}
+}

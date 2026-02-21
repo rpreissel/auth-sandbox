@@ -24,6 +24,7 @@ import java.util.UUID;
 
 @Service
 @Slf4j
+@SuppressWarnings("null")
 public class KeycloakAuthClient {
 
     private final KeycloakProperties keycloakProperties;

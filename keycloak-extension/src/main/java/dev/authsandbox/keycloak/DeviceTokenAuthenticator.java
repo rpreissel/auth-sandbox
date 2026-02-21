@@ -99,6 +99,7 @@ public class DeviceTokenAuthenticator implements Authenticator {
             }
 
             // Get the typed JWTAuthorizationGrantProvider — same call as JWTAuthorizationGrantType.
+            @SuppressWarnings("rawtypes")
             JWTAuthorizationGrantProvider jwtAuthorizationGrantProvider =
                     IdentityBrokerService.getIdentityProvider(
                             session, identityProviderModel, JWTAuthorizationGrantProvider.class);

@@ -1,7 +1,6 @@
 package dev.authsandbox.devicelogin.config;
 
 import dev.authsandbox.devicelogin.security.KeyLoader;
-import io.jsonwebtoken.security.Keys;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

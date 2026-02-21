@@ -22,6 +22,14 @@ public class Device {
     @Column(name = "device_id", nullable = false, unique = true)
     private String deviceId;
 
+    /** The pre-provisioned user identifier from the registration_codes table. */
+    @Column(name = "user_id", nullable = false, unique = true)
+    private String userId;
+
+    /** The human-readable display name from the registration_codes table. */
+    @Column(name = "name", nullable = false)
+    private String name;
+
     @Column(name = "public_key", nullable = false, columnDefinition = "TEXT")
     private String publicKey;
 
