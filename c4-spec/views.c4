@@ -7,7 +7,7 @@ views {
     deployment view deployment {
         title 'Deployment View'
         
-        include podman_kind.*
+        include podman_compose.*
     } 
 
     dynamic view app_login {

@@ -1,18 +1,16 @@
 deployment {
-    podman_kind = kubernetes_cluster {
-        pod keycloak {
+    podman_compose = pod {
+        pod keycloak_service {
             instanceOf keycloak
-            -> keycloak_postgres_db
         }
-        pod device_login {
+        pod device_login_service {
             instanceOf device_login
-            -> device_postgres_db
         }
-        pod device_postgres_db {
+        pod postgres_service {
             instanceOf device_login.device_db
         }
-        pod keycloak_postgres_db {
-            instanceOf keycloak.user_db
+        pod app_mock_service {
+            instanceOf mobile_app
         }
     }
 }

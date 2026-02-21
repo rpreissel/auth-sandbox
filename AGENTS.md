@@ -19,7 +19,7 @@ auth-sandbox/
 ├── c4-spec/              # LikeC4 architecture diagrams
 │   ├── _spec.c4          # Element type definitions and visual styles
 │   ├── model.c4          # System model: actors, components, relationships
-│   ├── deployment.c4     # Deployment topology (Kubernetes pods)
+│   ├── deployment.c4     # Deployment topology (Podman Compose)
 │   └── views.c4          # Architecture views (index, deployment, dynamic)
 ├── device-login/         # Spring Boot 3 / Java 21 backend service
 │   ├── Dockerfile            # Multi-stage build (Gradle + Temurin JRE)
@@ -29,6 +29,10 @@ auth-sandbox/
 │   │   └── public.pem
 │   ├── k8s/                  # Legacy Kubernetes manifests (reference only)
 │   └── src/                  # Application source
+├── keycloak-extension/   # Keycloak SPI authenticator (Java/Gradle)
+│   ├── build.gradle          # Gradle build config
+│   ├── settings.gradle       # Gradle settings
+│   └── src/                  # SPI source (DeviceTokenAuthenticator)
 ├── keycloak/             # Legacy Kubernetes manifests (kept for reference)
 │   ├── namespace.yaml        # keycloak namespace
 │   ├── postgres-secret.yaml  # PostgreSQL credentials (dev only)
@@ -38,11 +42,17 @@ auth-sandbox/
 │   ├── ingress.yaml          # Ingress rule → keycloak.localhost
 │   ├── cluster-issuer.yaml   # cert-manager ClusterIssuer (self-signed CA)
 │   └── proxy-headers.yaml    # ConfigMap for nginx proxy headers
-├── compose.yml           # Podman Compose stack (postgres + keycloak + device-login + caddy)
+├── app-mock/             # Single-page browser mock of the mobile app
+│   └── index.html
+├── admin-mock/           # Single-page browser admin panel
+│   └── index.html
+├── compose.yml           # Podman Compose stack (6 services)
 ├── Caddyfile             # Caddy reverse proxy config (TLS termination for *.localhost)
+├── e2e-test.sh           # End-to-end test script (curl + openssl)
 ├── postgres-init/        # SQL/shell scripts run by postgres on first start
 │   └── 01-device-login.sh    # Creates device_login user + schema
 ├── .env                  # Local secrets — NOT committed to git
+├── .env.example          # Secret template with placeholder values
 └── project.md            # Minimal project note
 ```
 
@@ -68,7 +78,25 @@ auth-sandbox/
 
 ## Build / Lint / Test Commands
 
-> No build system exists yet. When one is introduced, commands should be documented here.
+### device-login (Spring Boot / Gradle)
+
+```bash
+# Build (produces device-login/build/libs/device-login-*.jar)
+cd device-login && ./gradlew bootJar
+
+# Run tests
+cd device-login && ./gradlew test
+
+# Run a single test class
+cd device-login && ./gradlew test --tests "dev.authsandbox.devicelogin.service.JwtServiceTest"
+```
+
+### keycloak-extension (Gradle)
+
+```bash
+# Build the provider JAR (required before starting the stack)
+cd keycloak-extension && ./gradlew jar
+```
 
 ### LikeC4 (C4 Architecture Diagrams)
 

@@ -12,9 +12,12 @@ import dev.authsandbox.devicelogin.repository.ChallengeRepository;
 import dev.authsandbox.devicelogin.repository.DeviceRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
+import java.security.GeneralSecurityException;
 import java.security.KeyFactory;
 import java.security.PublicKey;
 import java.security.SecureRandom;
@@ -38,6 +41,7 @@ public class AuthService {
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     @Transactional
+    @SuppressWarnings("null")
     public StartLoginResponse startLogin(StartLoginRequest request) {
         Device device = deviceRepository.findByDeviceId(request.deviceId())
                 .orElseThrow(() -> new IllegalArgumentException(
@@ -98,8 +102,11 @@ public class AuthService {
         challenge.setUsed(true);
         challengeRepository.save(challenge);
 
-        String loginToken = jwtService.issueLoginAssertionToken(device.getDeviceId());
-        log.debug("Issued login assertion token for device '{}'", device.getDeviceId());
+        // The JWT sub must match the federated identity userId registered in Keycloak
+        // (createUserWithFederatedIdentity uses userId, not deviceId, as the external subject).
+        String loginToken = jwtService.issueLoginAssertionToken(device.getUserId());
+        log.debug("Issued login assertion token for device '{}' (userId '{}')",
+                device.getDeviceId(), device.getUserId());
 
         KeycloakTokenResponse kcTokens = keycloakAuthClient.authenticate(loginToken);
         log.info("Authentication successful for device '{}'", device.getDeviceId());
@@ -129,11 +136,32 @@ public class AuthService {
 
             Signature sig = Signature.getInstance("SHA256withRSA");
             sig.initVerify(publicKey);
-            sig.update(challengeValue.getBytes());
+            sig.update(challengeValue.getBytes(StandardCharsets.UTF_8));
             return sig.verify(signatureBytes);
-        } catch (Exception e) {
-            log.warn("Signature verification failed: {}", e.getMessage());
+        } catch (GeneralSecurityException e) {
+            // Crypto errors (bad key format, invalid signature encoding, etc.) are
+            // expected for invalid input — treat as a failed verification.
+            log.warn("Signature verification failed (crypto error): {}", e.getMessage());
             return false;
+        } catch (IllegalArgumentException e) {
+            // Base64 decoding failure — malformed input from the client.
+            log.warn("Signature verification failed (encoding error): {}", e.getMessage());
+            return false;
+        }
+        // Any other unexpected exception (e.g. NullPointerException, programming bug)
+        // is intentionally NOT caught here so it propagates and surfaces as a 500 error.
+    }
+
+    /**
+     * Removes expired challenges from the database every 10 minutes.
+     * This prevents unbounded growth of the challenges table.
+     */
+    @Scheduled(fixedRateString = "PT10M")
+    @Transactional
+    public void purgeExpiredChallenges() {
+        int deleted = challengeRepository.deleteExpiredChallenges(OffsetDateTime.now());
+        if (deleted > 0) {
+            log.info("Purged {} expired challenge(s)", deleted);
         }
     }
 }

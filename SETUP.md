@@ -1,227 +1,157 @@
 # Setup Guide — auth-sandbox
 
+> **Note:** This guide describes the current Podman Compose setup.
+> The legacy Kubernetes/Kind manifests in `keycloak/` are kept for reference only — do not apply them.
+
 Step-by-step instructions to bring up the complete local environment from scratch.
 
 ---
 
 ## Prerequisites
 
-The following tools must be installed on macOS:
-
 ```bash
-brew install podman kind kubectl k9s
+brew install podman podman-compose
 ```
 
 Verify:
 
 ```bash
-podman --version     # >= 5.8
-kind version         # >= 0.31
-kubectl version --client
-k9s version
+podman --version        # >= 5.x
+podman-compose --version
 ```
 
 ---
 
-## 1. Podman Machine
+## 1. /etc/hosts
 
-Create and start the Podman VM (rootful mode is required for Kind):
-
-```bash
-podman machine init auth-sandbox --cpus 4 --memory 4096 --disk-size 60
-podman machine stop auth-sandbox
-podman machine set --rootful auth-sandbox
-podman machine start auth-sandbox
-```
-
-Set it as the active Podman connection:
-
-```bash
-podman system connection default auth-sandbox-root
-```
-
-Verify:
-
-```bash
-podman info --format '{{.Host.OS}}'
-# expected: linux
-```
-
----
-
-## 2. Kind Cluster
-
-Create the Kubernetes cluster using the Podman provider:
-
-```bash
-KIND_EXPERIMENTAL_PROVIDER=podman kind create cluster --name auth-sandbox
-```
-
-This automatically sets the kubectl context to `kind-auth-sandbox`.
-
-Verify:
-
-```bash
-kubectl get nodes --context kind-auth-sandbox
-# NAME                         STATUS   ROLES           AGE   VERSION
-# auth-sandbox-control-plane   Ready    control-plane   ...   v1.35.x
-```
-
----
-
-## 3. ingress-nginx
-
-Install the ingress controller and label the node so it can be scheduled:
-
-```bash
-kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.12.1/deploy/static/provider/kind/deploy.yaml --context kind-auth-sandbox
-
-kubectl label node auth-sandbox-control-plane ingress-ready=true --context kind-auth-sandbox
-
-kubectl wait --namespace ingress-nginx \
-  --for=condition=ready pod \
-  --selector=app.kubernetes.io/component=controller \
-  --timeout=120s \
-  --context kind-auth-sandbox
-```
-
----
-
-## 4. cert-manager
-
-Install cert-manager for automatic TLS certificate provisioning:
-
-```bash
-kubectl apply -f https://github.com/cert-manager/cert-manager/releases/latest/download/cert-manager.yaml --context kind-auth-sandbox
-
-kubectl wait --namespace cert-manager \
-  --for=condition=ready pod \
-  --selector=app.kubernetes.io/instance=cert-manager \
-  --timeout=120s \
-  --context kind-auth-sandbox
-```
-
----
-
-## 5. Keycloak Stack
-
-Apply all manifests in the `keycloak/` directory:
-
-```bash
-kubectl apply -f keycloak/namespace.yaml        --context kind-auth-sandbox
-kubectl apply -f keycloak/postgres-secret.yaml  --context kind-auth-sandbox
-kubectl apply -f keycloak/keycloak-secret.yaml  --context kind-auth-sandbox
-kubectl apply -f keycloak/postgres.yaml         --context kind-auth-sandbox
-kubectl apply -f keycloak/cluster-issuer.yaml   --context kind-auth-sandbox
-kubectl apply -f keycloak/proxy-headers.yaml    --context kind-auth-sandbox
-kubectl apply -f keycloak/keycloak.yaml         --context kind-auth-sandbox
-kubectl apply -f keycloak/ingress.yaml          --context kind-auth-sandbox
-```
-
-Wait for all pods to be ready:
-
-```bash
-kubectl wait --namespace keycloak \
-  --for=condition=ready pod --selector=app=keycloak-postgres \
-  --timeout=120s --context kind-auth-sandbox
-
-kubectl wait --namespace keycloak \
-  --for=condition=ready pod --selector=app=keycloak \
-  --timeout=120s --context kind-auth-sandbox
-```
-
----
-
-## 6. /etc/hosts
-
-Add the following entry (one-time, requires sudo):
+Add the following entries (one-time, requires sudo):
 
 ```bash
 echo "127.0.0.1  keycloak.localhost" | sudo tee -a /etc/hosts
+echo "127.0.0.1  device-login.localhost" | sudo tee -a /etc/hosts
+echo "127.0.0.1  app-mock.localhost" | sudo tee -a /etc/hosts
+echo "127.0.0.1  admin.localhost" | sudo tee -a /etc/hosts
 ```
 
 ---
 
-## 7. Access Keycloak
+## 2. Secrets (.env)
 
-Start the port-forward (run in a dedicated terminal or background):
+Copy the example file and fill in all `change-me-*` values:
 
 ```bash
-kubectl port-forward -n ingress-nginx svc/ingress-nginx-controller 8443:443 \
-  --context kind-auth-sandbox
+cp .env.example .env
 ```
 
-Open in browser: **https://keycloak.localhost:8443**
-
-Admin credentials:
-- **User:** `admin`
-- **Password:** `admin-password`
-
-> The browser will show a certificate warning (self-signed CA). Accept it to proceed.
+Edit `.env` — at minimum replace every value that starts with `change-me-`.
 
 ---
 
-## 8. Daily Workflow (after reboot)
+## 3. RSA Keys (device-login JWT signing)
+
+Generate a 4096-bit RSA key pair for the `device-login` service:
 
 ```bash
-# Start the Podman machine
-podman machine start auth-sandbox
-
-# Restore the active connection
-podman system connection default auth-sandbox-root
-
-# Start port-forward
-kubectl port-forward -n ingress-nginx svc/ingress-nginx-controller 8443:443 \
-  --context kind-auth-sandbox &
-
-# Open https://keycloak.localhost:8443
+mkdir -p device-login/keys
+openssl genrsa -out device-login/keys/private.pem 4096
+openssl rsa -in device-login/keys/private.pem -pubout -out device-login/keys/public.pem
 ```
 
-The Kind cluster and all pods persist across reboots — no need to re-apply manifests.
+These files are excluded from git (see `.gitignore`).
 
 ---
 
-## Monitoring with k9s
+## 4. Build the Keycloak extension
+
+The Keycloak SPI extension must be compiled before starting the stack:
 
 ```bash
-k9s --context kind-auth-sandbox -n keycloak
+cd keycloak-extension
+./gradlew jar
+cd ..
 ```
 
-Useful commands inside k9s:
+The built JAR will be picked up automatically by the `keycloak` service via the volume mount in `compose.yml`.
 
-| Key | Action |
+---
+
+## 5. Start the stack
+
+```bash
+podman compose up -d
+```
+
+Services started:
+
+| Service | Description |
 |---|---|
-| `0` | All namespaces |
-| `:pods` | Pod list |
-| `:ingress` | Ingress list |
-| `l` | Logs |
-| `d` | Describe |
-| `s` | Shell |
-| `?` | All shortcuts |
+| `postgres` | Shared PostgreSQL 16 (Keycloak + device-login schemas) |
+| `keycloak` | Keycloak 26.x in dev mode |
+| `device-login` | Spring Boot authentication backend |
+| `app-mock` | Browser mock of the mobile app |
+| `admin-mock` | Browser admin panel |
+| `caddy` | TLS-terminating reverse proxy for all `*.localhost` domains |
 
 ---
 
-## Cluster Overview
+## 6. Keycloak Realm Setup (manual, one-time)
 
-| Component | Namespace | Image |
-|---|---|---|
-| Keycloak | `keycloak` | `quay.io/keycloak/keycloak:26.5` |
-| PostgreSQL (Keycloak) | `keycloak` | `postgres:16` |
-| ingress-nginx | `ingress-nginx` | controller v1.12.1 |
-| cert-manager | `cert-manager` | latest |
+Open the Keycloak Admin UI at **https://keycloak.localhost:8443** and accept the self-signed certificate warning.
 
-TLS is handled by cert-manager with a self-signed local CA (`local-ca-issuer`).
-Certificates are automatically issued and renewed via the `keycloak-tls` secret.
+Log in with the credentials from your `.env` (`KEYCLOAK_ADMIN` / `KEYCLOAK_ADMIN_PASSWORD`).
+
+Create and configure the following (in order):
+
+1. **Realm:** `auth-sandbox`
+2. **Client** `device-login-admin` — Client Credentials grant; use `KEYCLOAK_ADMIN_CLIENT_SECRET` as the secret; assign the `realm-management` roles `view-users`, `manage-users`, `manage-identity-providers`
+3. **Client** `device-login-client` — Standard Flow; use `KEYCLOAK_CLIENT_SECRET` as the secret; add `https://device-login.localhost:8443/api/v1/auth/callback` as a valid redirect URI
+4. **JWT Authorization Grant IdP** (alias: value of `KEYCLOAK_IDP_ALIAS`):
+   - Provider type: *JWT Authorization Grant (identity provider)*
+   - JWKS URL: `https://device-login.localhost:8443/api/v1/auth/.well-known/jwks.json`
+   - Issuer: value of `JWT_ISSUER` from `.env`
+5. **Authentication flow** using the `DeviceTokenAuthenticator` SPI execution, bound to the `device-login-idp` IdP
+
+---
+
+## 7. Access
+
+| URL | Description |
+|---|---|
+| https://keycloak.localhost:8443 | Keycloak Admin UI |
+| https://device-login.localhost:8443/actuator/health | device-login health check |
+| https://admin.localhost:8443 | Admin mock panel |
+| https://app-mock.localhost:8443 | Mobile app mock |
+
+---
+
+## 8. Daily Workflow
+
+```bash
+# Start all services
+podman compose up -d
+
+# View logs
+podman compose logs -f keycloak
+podman compose logs -f device-login
+
+# Stop all services
+podman compose down
+```
+
+---
+
+## 9. Running the E2E tests
+
+```bash
+bash e2e-test.sh
+```
+
+Requires the full stack to be running and the Keycloak realm configured (step 6).
 
 ---
 
 ## Teardown
 
 ```bash
-# Delete the Kind cluster
-kind delete cluster --name auth-sandbox
-
-# Stop and delete the Podman machine
-podman machine stop auth-sandbox
-podman machine rm auth-sandbox
+podman compose down -v   # also removes the postgres data volume
 ```
