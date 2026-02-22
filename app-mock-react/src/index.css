@@ -1,0 +1,112 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg:         #0f1117;
+  --color-surface:    #1a1d27;
+  --color-surface2:   #252836;
+  --color-border:     #2e3248;
+  --color-accent:     #6c63ff;
+  --color-accent-dim: #3d3870;
+  --color-success:    #22c55e;
+  --color-warning:    #f59e0b;
+  --color-error:      #ef4444;
+  --color-text:       #e2e8f0;
+  --color-text-dim:   #94a3b8;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  min-height: 100vh;
+}
+
+/* ── Shared component classes (used across screens) ─────────────── */
+
+.input {
+  width: 100%;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  color: var(--color-text);
+  padding: 0.65rem 0.875rem;
+  font-size: 0.9rem;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.input:focus        { border-color: var(--color-accent); }
+.input:disabled     { opacity: 0.5; cursor: not-allowed; }
+.input::placeholder { color: var(--color-text-dim); opacity: 0.6; }
+
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.75rem 1.25rem;
+  border: none;
+  border-radius: 10px;
+  background: var(--color-accent);
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.btn-primary:hover:not(:disabled)    { opacity: 0.88; }
+.btn-primary:disabled                { opacity: 0.4; cursor: not-allowed; }
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-surface2);
+  color: var(--color-text);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.btn-secondary:hover:not(:disabled)  { opacity: 0.8; }
+.btn-secondary:disabled              { opacity: 0.4; cursor: not-allowed; }
+
+.btn-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1rem;
+  border: 1px solid #7f1d1d;
+  border-radius: 10px;
+  background: #450a0a;
+  color: #f87171;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.btn-danger:hover:not(:disabled)     { opacity: 0.8; }
+.btn-danger:disabled                 { opacity: 0.4; cursor: not-allowed; }
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: .3; }
+}
+@keyframes slide-up {
+  from { transform: translateY(30px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+@keyframes fill-ring {
+  to { stroke-dashoffset: 0; }
+}
+
+.animate-pulse-dot { animation: pulse-dot 1s infinite; }
+.animate-slide-up  { animation: slide-up .25s ease; }
+.animate-fill-ring { animation: fill-ring 1.5s ease-in-out forwards; }
