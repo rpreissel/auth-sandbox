@@ -90,6 +90,13 @@ services:
     volumes:
       - ./admin-mock:/srv:ro
 
+  home:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    command: caddy file-server --root /srv --listen :80
+    volumes:
+      - ./home:/srv:ro
+
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
@@ -105,6 +112,7 @@ services:
       - device-login
       - app-mock
       - admin-mock
+      - home
 
 volumes:
   keycloak-postgres-data:

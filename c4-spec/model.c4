@@ -13,6 +13,14 @@ model {
                 '''
             }
         }
+        binding = component {
+            description "Handles device registration and key provisioning"
+            -> device_login "Register device" {
+                description '''
+                Sends public key and device metadata to bind the device.
+                '''
+            }
+        }
     }
 
     device_login = backend {

@@ -1,39 +1,57 @@
 views {
-    
+
     view index {
         include *
     }
 
     deployment view deployment {
         title 'Deployment View'
-        
         include podman_compose.*
-    } 
+    }
+
+    dynamic view device_binding {
+        title 'Device Binding'
+
+        user
+            -> mobile_app.binding      "Initiates device registration"
+            -> mobile_app.keystore     "Generate RSA key pair"
+            -> user                    "Biometric / PIN authorization"
+            -> mobile_app.keystore     "Persist private key (protected)"
+            -> mobile_app.binding      "Return public key"
+            -> device_login            "POST /devices/register {publicKey, deviceId, userId}"
+            -> keycloak                "Verify user identity (Bearer token)"
+            -> device_login            "Identity confirmed — persist device record"
+            -> mobile_app.binding      "200 OK — device bound"
+            -> user                    "Device successfully registered"
+
+        include user, mobile_app, mobile_app.binding, mobile_app.keystore,
+                device_login, keycloak
+    }
 
     dynamic view app_login {
-        title 'App Login Flow'
-        
-        user 
-            -> mobile_app.login "Initiates login process"
-    
-            -> device_login "starts login process"
-            -> mobile_app.login "retrurns a challenge"
-            -> mobile_app.keystore "requests signature for challenge"
-            -> user "biometric authentication or PIN entry"
-            -> mobile_app.keystore "signs challenge with user's key"
-            -> mobile_app.login "sends signed challenge back to device login"
-            -> device_login "verifies signature and issues jwt-token"
-            -> keycloak.device_token_ext "exchanges device token for OIDC tokens" {
+        title 'App Login'
+
+        user
+            -> mobile_app.login            "Initiates login"
+            -> device_login                "POST /auth/challenge {deviceId}"
+            -> mobile_app.login            "Return challenge (nonce, expiry)"
+            -> mobile_app.keystore         "Sign challenge with private key"
+            -> user                        "Biometric / PIN authorization"
+            -> mobile_app.keystore         "Return signed challenge"
+            -> mobile_app.login            "Signed challenge available"
+            -> device_login                "POST /auth/verify {deviceId, signedChallenge}"
+            -> device_login                "Verify signature — issue device JWT"
+            -> keycloak.device_token_ext   "Exchange device JWT for OIDC tokens" {
                 description '''
-                Code Auth Flow with Device Jwt Tokens
+                Code Auth Flow with Device JWT.
+                Extension validates signature, iss, aud, exp.
                 '''
             }
-            -> device_login "returns OIDC tokens "
-            -> mobile_app.login "receives OIDC tokens and completes login"
-            -> user "is now authenticated and can access the app"
+            -> device_login                "Return OIDC tokens (access + refresh)"
+            -> mobile_app.login            "Store tokens — login complete"
+            -> user                        "Authenticated"
 
-
-
-        include user, mobile_app, mobile_app.login, mobile_app.keystore, device_login, keycloak._
+        include user, mobile_app, mobile_app.login, mobile_app.keystore,
+                device_login, keycloak._
     }
 }

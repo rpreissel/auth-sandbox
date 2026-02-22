@@ -31,6 +31,7 @@ echo "127.0.0.1  keycloak.localhost" | sudo tee -a /etc/hosts
 echo "127.0.0.1  device-login.localhost" | sudo tee -a /etc/hosts
 echo "127.0.0.1  app-mock.localhost" | sudo tee -a /etc/hosts
 echo "127.0.0.1  admin.localhost" | sudo tee -a /etc/hosts
+echo "127.0.0.1  home.localhost" | sudo tee -a /etc/hosts
 ```
 
 ---
@@ -90,6 +91,7 @@ Services started:
 | `device-login` | Spring Boot authentication backend |
 | `app-mock` | Browser mock of the mobile app |
 | `admin-mock` | Browser admin panel |
+| `home` | Developer start page with links to all services |
 | `caddy` | TLS-terminating reverse proxy for all `*.localhost` domains |
 
 ---
@@ -117,6 +119,7 @@ Create and configure the following (in order):
 
 | URL | Description |
 |---|---|
+| https://home.localhost:8443 | Developer start page (all links at a glance) |
 | https://keycloak.localhost:8443 | Keycloak Admin UI |
 | https://device-login.localhost:8443/actuator/health | device-login health check |
 | https://admin.localhost:8443 | Admin mock panel |

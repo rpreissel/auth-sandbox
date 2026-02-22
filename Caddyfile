@@ -70,3 +70,16 @@ admin.localhost:443 {
 admin.localhost:80 {
     redir https://admin.localhost:8443{uri} permanent
 }
+
+# home.localhost — developer start page with links to all services
+home.localhost:443 {
+    tls internal
+
+    handle {
+        reverse_proxy home:80
+    }
+}
+
+home.localhost:80 {
+    redir https://home.localhost:8443{uri} permanent
+}

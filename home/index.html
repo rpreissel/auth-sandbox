@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>auth-sandbox — Dev Home</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:         #0f1117;
+      --surface:    #1a1d27;
+      --surface2:   #252836;
+      --border:     #2e3248;
+      --accent:     #6c63ff;
+      --accent-dim: #3d3870;
+      --success:    #22c55e;
+      --warning:    #f59e0b;
+      --error:      #ef4444;
+      --text:       #e2e8f0;
+      --text-dim:   #94a3b8;
+      --font-mono:  "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+      --radius:     10px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2.5rem 1rem 5rem;
+    }
+
+    .shell {
+      width: 100%;
+      max-width: 900px;
+      display: flex;
+      flex-direction: column;
+      gap: 2rem;
+    }
+
+    /* ── Header ─────────────────────────────────────────────────── */
+    header {
+      display: flex;
+      align-items: center;
+      gap: 1.25rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .logo {
+      width: 52px; height: 52px;
+      background: linear-gradient(135deg, var(--accent), #a78bfa);
+      border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.6rem;
+      flex-shrink: 0;
+    }
+
+    header h1 {
+      font-size: 1.6rem;
+      font-weight: 800;
+      letter-spacing: -.02em;
+    }
+
+    header p {
+      font-size: .85rem;
+      color: var(--text-dim);
+      margin-top: 3px;
+    }
+
+    .version-pill {
+      margin-left: auto;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: .25rem .75rem;
+      font-size: .72rem;
+      font-family: var(--font-mono);
+      color: var(--text-dim);
+      white-space: nowrap;
+    }
+
+    /* ── Section title ──────────────────────────────────────────── */
+    .section-title {
+      font-size: .72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      color: var(--text-dim);
+      margin-bottom: .75rem;
+    }
+
+    /* ── Link grid ──────────────────────────────────────────────── */
+    .link-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: .85rem;
+    }
+
+    .link-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem 1.15rem;
+      text-decoration: none;
+      color: inherit;
+      display: flex;
+      align-items: flex-start;
+      gap: .9rem;
+      transition: border-color .2s, background .2s;
+      cursor: pointer;
+    }
+
+    .link-card:hover {
+      border-color: var(--accent);
+      background: var(--surface2);
+    }
+
+    .link-card:hover .card-arrow { opacity: 1; }
+
+    .card-icon {
+      width: 38px; height: 38px;
+      border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.2rem;
+      flex-shrink: 0;
+    }
+
+    .icon-purple  { background: rgba(108, 99,255,.18); }
+    .icon-green   { background: rgba( 34,197, 94,.15); }
+    .icon-orange  { background: rgba(245,158, 11,.15); }
+    .icon-blue    { background: rgba(125,211,252,.12); }
+    .icon-red     { background: rgba(239, 68, 68,.13); }
+    .icon-gray    { background: var(--surface2); }
+
+    .card-body { flex: 1; min-width: 0; }
+
+    .card-title {
+      font-size: .92rem;
+      font-weight: 700;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .card-url {
+      font-family: var(--font-mono);
+      font-size: .7rem;
+      color: var(--accent);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-top: 2px;
+    }
+
+    .card-desc {
+      font-size: .78rem;
+      color: var(--text-dim);
+      margin-top: .3rem;
+      line-height: 1.4;
+    }
+
+    .card-arrow {
+      margin-left: auto;
+      color: var(--text-dim);
+      font-size: .9rem;
+      opacity: 0;
+      transition: opacity .2s;
+      flex-shrink: 0;
+      align-self: center;
+    }
+
+    /* ── Status bar ─────────────────────────────────────────────── */
+    .status-bar {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: .85rem 1.15rem;
+      display: flex;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .status-item {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      font-size: .8rem;
+    }
+
+    .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .dot-green   { background: var(--success); box-shadow: 0 0 6px var(--success); }
+    .dot-gray    { background: var(--text-dim); }
+    .dot-pending { background: var(--warning); animation: pulse 1s infinite; }
+
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
+
+    .status-label { color: var(--text-dim); }
+    .status-value { font-weight: 600; }
+
+    .status-bar-title {
+      font-size: .72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      color: var(--text-dim);
+      margin-right: .5rem;
+    }
+
+    .btn-sm {
+      margin-left: auto;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text-dim);
+      font-size: .75rem;
+      font-weight: 600;
+      padding: .25rem .65rem;
+      cursor: pointer;
+      transition: color .2s, border-color .2s;
+    }
+
+    .btn-sm:hover { color: var(--text); border-color: var(--accent); }
+
+    /* ── Divider ────────────────────────────────────────────────── */
+    .divider {
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* ── Footer ─────────────────────────────────────────────────── */
+    footer {
+      text-align: center;
+      font-size: .75rem;
+      color: var(--text-dim);
+      padding-top: .5rem;
+      border-top: 1px solid var(--border);
+    }
+
+    footer a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    footer a:hover { text-decoration: underline; }
+
+    @media (max-width: 500px) {
+      .link-grid { grid-template-columns: 1fr; }
+      .version-pill { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="shell">
+
+  <!-- ── Header ────────────────────────────────────────────────────── -->
+  <header>
+    <div class="logo">🔐</div>
+    <div>
+      <h1>auth-sandbox</h1>
+      <p>OAuth2 Device Authorization Grant — local development environment</p>
+    </div>
+    <span class="version-pill">Podman Compose · localhost</span>
+  </header>
+
+  <!-- ── Service health ────────────────────────────────────────────── -->
+  <div>
+    <div class="section-title">Service Health</div>
+    <div class="status-bar">
+      <span class="status-bar-title">Services</span>
+      <div class="status-item" id="si-keycloak">
+        <span class="dot dot-gray" id="dot-keycloak"></span>
+        <span class="status-label">Keycloak</span>
+        <span class="status-value" id="val-keycloak">checking…</span>
+      </div>
+      <div class="status-item" id="si-device-login">
+        <span class="dot dot-gray" id="dot-device-login"></span>
+        <span class="status-label">device-login</span>
+        <span class="status-value" id="val-device-login">checking…</span>
+      </div>
+      <button class="btn-sm" onclick="checkHealth()">&#8635; Refresh</button>
+    </div>
+  </div>
+
+  <!-- ── UIs ───────────────────────────────────────────────────────── -->
+  <div>
+    <div class="section-title">Application UIs</div>
+    <div class="link-grid">
+
+      <a class="link-card" href="https://app-mock.localhost:8443" target="_blank" rel="noopener">
+        <div class="card-icon icon-purple">📱</div>
+        <div class="card-body">
+          <div class="card-title">Mobile App Mock</div>
+          <div class="card-url">app-mock.localhost:8443</div>
+          <div class="card-desc">Browser simulation of the mobile authentication client.</div>
+        </div>
+        <span class="card-arrow">↗</span>
+      </a>
+
+      <a class="link-card" href="https://admin.localhost:8443" target="_blank" rel="noopener">
+        <div class="card-icon icon-orange">🛡️</div>
+        <div class="card-body">
+          <div class="card-title">Admin Panel</div>
+          <div class="card-url">admin.localhost:8443</div>
+          <div class="card-desc">Manage registration codes and registered devices.</div>
+        </div>
+        <span class="card-arrow">↗</span>
+      </a>
+
+      <a class="link-card" href="https://keycloak.localhost:8443" target="_blank" rel="noopener">
+        <div class="card-icon icon-blue">🗝️</div>
+        <div class="card-body">
+          <div class="card-title">Keycloak Admin UI</div>
+          <div class="card-url">keycloak.localhost:8443</div>
+          <div class="card-desc">Identity provider management, realms, clients, and flows.</div>
+        </div>
+        <span class="card-arrow">↗</span>
+      </a>
+
+    </div>
+  </div>
+
+  <!-- ── API Endpoints ─────────────────────────────────────────────── -->
+  <div>
+    <div class="section-title">device-login API</div>
+    <div class="link-grid">
+
+      <a class="link-card" href="https://device-login.localhost:8443/actuator/health" target="_blank" rel="noopener">
+        <div class="card-icon icon-green">❤️</div>
+        <div class="card-body">
+          <div class="card-title">Health Check</div>
+          <div class="card-url">/actuator/health</div>
+          <div class="card-desc">Spring Boot Actuator — service liveness and readiness.</div>
+        </div>
+        <span class="card-arrow">↗</span>
+      </a>
+
+      <a class="link-card" href="https://device-login.localhost:8443/api/v1/auth/.well-known/jwks.json" target="_blank" rel="noopener">
+        <div class="card-icon icon-blue">🔑</div>
+        <div class="card-body">
+          <div class="card-title">JWKS Endpoint</div>
+          <div class="card-url">/api/v1/auth/.well-known/jwks.json</div>
+          <div class="card-desc">RSA public key used by Keycloak to verify device tokens.</div>
+        </div>
+        <span class="card-arrow">↗</span>
+      </a>
+
+      <a class="link-card" href="https://device-login.localhost:8443/api/v1/admin/registration-codes" target="_blank" rel="noopener">
+        <div class="card-icon icon-orange">📋</div>
+        <div class="card-body">
+          <div class="card-title">Registration Codes API</div>
+          <div class="card-url">/api/v1/admin/registration-codes</div>
+          <div class="card-desc">List all registration codes (Basic Auth required).</div>
+        </div>
+        <span class="card-arrow">↗</span>
+      </a>
+
+      <a class="link-card" href="https://device-login.localhost:8443/api/v1/admin/devices" target="_blank" rel="noopener">
+        <div class="card-icon icon-purple">📟</div>
+        <div class="card-body">
+          <div class="card-title">Devices API</div>
+          <div class="card-url">/api/v1/admin/devices</div>
+          <div class="card-desc">List all registered devices (Basic Auth required).</div>
+        </div>
+        <span class="card-arrow">↗</span>
+      </a>
+
+    </div>
+  </div>
+
+  <!-- ── Keycloak quick links ──────────────────────────────────────── -->
+  <div>
+    <div class="section-title">Keycloak Quick Links</div>
+    <div class="link-grid">
+
+      <a class="link-card" href="https://keycloak.localhost:8443/admin/master/console/#/auth-sandbox" target="_blank" rel="noopener">
+        <div class="card-icon icon-blue">🏛️</div>
+        <div class="card-body">
+          <div class="card-title">auth-sandbox Realm</div>
+          <div class="card-url">/admin/…/auth-sandbox</div>
+          <div class="card-desc">Jump directly to the auth-sandbox realm in the admin console.</div>
+        </div>
+        <span class="card-arrow">↗</span>
+      </a>
+
+      <a class="link-card" href="https://keycloak.localhost:8443/realms/auth-sandbox/.well-known/openid-configuration" target="_blank" rel="noopener">
+        <div class="card-icon icon-green">📄</div>
+        <div class="card-body">
+          <div class="card-title">OIDC Discovery</div>
+          <div class="card-url">/realms/auth-sandbox/.well-known/…</div>
+          <div class="card-desc">OpenID Connect discovery document for the auth-sandbox realm.</div>
+        </div>
+        <span class="card-arrow">↗</span>
+      </a>
+
+      <a class="link-card" href="https://keycloak.localhost:8443/admin/master/console/#/auth-sandbox/identity-providers" target="_blank" rel="noopener">
+        <div class="card-icon icon-orange">🔗</div>
+        <div class="card-body">
+          <div class="card-title">Identity Providers</div>
+          <div class="card-url">/admin/…/identity-providers</div>
+          <div class="card-desc">Configure the JWT Authorization Grant IdP and custom flows.</div>
+        </div>
+        <span class="card-arrow">↗</span>
+      </a>
+
+      <a class="link-card" href="https://keycloak.localhost:8443/admin/master/console/#/auth-sandbox/clients" target="_blank" rel="noopener">
+        <div class="card-icon icon-purple">🧩</div>
+        <div class="card-body">
+          <div class="card-title">Clients</div>
+          <div class="card-url">/admin/…/clients</div>
+          <div class="card-desc">Manage device-login-client and device-login-admin clients.</div>
+        </div>
+        <span class="card-arrow">↗</span>
+      </a>
+
+    </div>
+  </div>
+
+  <!-- ── Docs ──────────────────────────────────────────────────────── -->
+  <div>
+    <div class="section-title">Docs &amp; Source</div>
+    <div class="link-grid">
+
+      <div class="link-card" onclick="copyToClipboard('podman compose up -d', this)">
+        <div class="card-icon icon-gray">▶️</div>
+        <div class="card-body">
+          <div class="card-title">Start stack</div>
+          <div class="card-url" style="font-family:var(--font-mono)">podman compose up -d</div>
+          <div class="card-desc">Click to copy the command to start all services.</div>
+        </div>
+        <span class="card-arrow" style="opacity:1; color:var(--text-dim); font-size:.75rem;" id="copy-start">copy</span>
+      </div>
+
+      <div class="link-card" onclick="copyToClipboard('podman compose down', this)">
+        <div class="card-icon icon-red">⏹️</div>
+        <div class="card-body">
+          <div class="card-title">Stop stack</div>
+          <div class="card-url" style="font-family:var(--font-mono)">podman compose down</div>
+          <div class="card-desc">Click to copy the command to stop all services.</div>
+        </div>
+        <span class="card-arrow" style="opacity:1; color:var(--text-dim); font-size:.75rem;" id="copy-stop">copy</span>
+      </div>
+
+      <div class="link-card" onclick="copyToClipboard('podman compose logs -f device-login', this)">
+        <div class="card-icon icon-gray">📜</div>
+        <div class="card-body">
+          <div class="card-title">Tail logs</div>
+          <div class="card-url" style="font-family:var(--font-mono)">podman compose logs -f device-login</div>
+          <div class="card-desc">Click to copy the log-tailing command for device-login.</div>
+        </div>
+        <span class="card-arrow" style="opacity:1; color:var(--text-dim); font-size:.75rem;" id="copy-logs">copy</span>
+      </div>
+
+      <div class="link-card" onclick="copyToClipboard('bash e2e-test.sh', this)">
+        <div class="card-icon icon-green">🧪</div>
+        <div class="card-body">
+          <div class="card-title">E2E Tests</div>
+          <div class="card-url" style="font-family:var(--font-mono)">bash e2e-test.sh</div>
+          <div class="card-desc">Click to copy the end-to-end test command.</div>
+        </div>
+        <span class="card-arrow" style="opacity:1; color:var(--text-dim); font-size:.75rem;" id="copy-e2e">copy</span>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <footer>
+    auth-sandbox · local dev only ·
+    <a href="https://keycloak.localhost:8443" target="_blank" rel="noopener">Keycloak</a> ·
+    <a href="https://device-login.localhost:8443/actuator/health" target="_blank" rel="noopener">device-login</a> ·
+    <a href="https://admin.localhost:8443" target="_blank" rel="noopener">Admin</a> ·
+    <a href="https://app-mock.localhost:8443" target="_blank" rel="noopener">App Mock</a>
+  </footer>
+
+</div>
+
+<script>
+/* ── Health checks ────────────────────────────────────────────────── */
+const SERVICES = [
+  {
+    id: 'keycloak',
+    url: 'https://keycloak.localhost:8443/health/live',
+    label: 'Keycloak',
+  },
+  {
+    id: 'device-login',
+    url: 'https://device-login.localhost:8443/actuator/health',
+    label: 'device-login',
+  },
+];
+
+async function pingService(svc) {
+  const dot = document.getElementById(`dot-${svc.id}`);
+  const val = document.getElementById(`val-${svc.id}`);
+
+  dot.className = 'dot dot-pending';
+  val.textContent = 'checking…';
+
+  try {
+    const res = await fetch(svc.url, { mode: 'no-cors', cache: 'no-store' });
+    // no-cors always returns opaque responses (status 0), but no throw = reachable
+    dot.className = 'dot dot-green';
+    val.textContent = 'reachable';
+  } catch {
+    dot.className = 'dot dot-gray';
+    val.textContent = 'unreachable';
+  }
+}
+
+function checkHealth() {
+  SERVICES.forEach(pingService);
+}
+
+/* ── Copy to clipboard ────────────────────────────────────────────── */
+function copyToClipboard(text, card) {
+  navigator.clipboard.writeText(text).then(() => {
+    const arrow = card.querySelector('.card-arrow');
+    if (!arrow) return;
+    const orig = arrow.textContent;
+    arrow.textContent = 'copied!';
+    arrow.style.color = 'var(--success)';
+    setTimeout(() => {
+      arrow.textContent = orig;
+      arrow.style.color = '';
+    }, 1800);
+  });
+}
+
+/* ── Init ─────────────────────────────────────────────────────────── */
+checkHealth();
+</script>
+
+</body>
+</html>
