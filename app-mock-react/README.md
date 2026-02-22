@@ -1,73 +1,70 @@
-# React + TypeScript + Vite
+# app-mock-react
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Browser-based mock of the mobile app, simulating the full device registration and login flow against the local `device-login` backend.
 
-Currently, two official plugins are available:
+Built with **React 19 / TypeScript / Vite / Tailwind CSS**.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+---
 
-## React Compiler
+## Purpose
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Provides a browser UI to manually test the authentication flow end-to-end without a real mobile device:
 
-## Expanding the ESLint configuration
+1. **Device registration** — generate an RSA key pair in the browser, register the device with the backend using an activation code
+2. **Login** — request a challenge, sign it with the stored private key (simulated biometric gate via a modal), and exchange the signed challenge for OIDC tokens
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+---
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## Screens
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+| Screen | Description |
+|---|---|
+| `HomeScreen` | Registered device: shows login button and token state |
+| `UnregisteredScreen` | No device registered: shows registration form |
+| `AuthenticatedScreen` | After successful login: shows decoded OIDC tokens |
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+---
+
+## Structure
+
+```
+src/
+├── App.tsx               # Root component — screen routing based on device state
+├── screens/
+│   ├── HomeScreen.tsx
+│   ├── UnregisteredScreen.tsx
+│   └── AuthenticatedScreen.tsx
+├── components/
+│   ├── ActivityLog.tsx   # Scrollable log of API calls and events
+│   ├── BiometricModal.tsx # Simulated biometric/PIN confirmation dialog
+│   └── ui.tsx            # Shared UI primitives
+├── services/
+│   ├── api.ts            # device-login REST API calls
+│   ├── crypto.ts         # Web Crypto API — RSA key generation and signing
+│   └── storage.ts        # localStorage persistence for keys and device state
+├── hooks/
+│   └── useLog.ts         # Activity log state hook
+└── types/
+    └── index.ts          # Shared TypeScript types
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+---
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Build
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
+npm run build   # output → dist/ (served by Caddy via volume mount)
 ```
+
+No container restart is needed after rebuilding — Caddy serves `dist/` live.
+
+The app is available at **https://app-mock.localhost:8443** when the Podman Compose stack is running.
+
+## Dev server (optional)
+
+```bash
+npm run dev     # Vite dev server on http://localhost:5173
+```
+
+Note: in dev mode, API calls to `/api/*` are not proxied. Use the built `dist/` served by Caddy for full end-to-end testing.

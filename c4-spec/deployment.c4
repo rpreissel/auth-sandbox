@@ -12,5 +12,11 @@ deployment {
         pod app_mock_service {
             instanceOf mobile_app
         }
+        pod admin_mock_service {
+            instanceOf admin_panel
+        }
+        pod home_service {
+            instanceOf home_page
+        }
     }
 }

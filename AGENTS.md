@@ -6,7 +6,7 @@ Guidance for AI coding agents working in this repository.
 
 ## Project Overview
 
-This is a **greenfield mobile authentication project** at the architecture specification stage. The intended system implements an OAuth2-style Device Authorization Grant flow using Keycloak as the Identity Provider (IAM), a custom Device Login backend, and a mobile app with a local cryptographic keystore (biometric/PIN-protected).
+This is a **mobile authentication project** implementing an OAuth2-style Device Authorization Grant flow using Keycloak as the Identity Provider (IAM), a custom Device Login backend, and a mobile app with a local cryptographic keystore (biometric/PIN-protected).
 
 **Infrastructure target:** Podman Compose (local development) — previously Kind/Kubernetes, migrated to `podman compose`.
 
@@ -42,17 +42,29 @@ auth-sandbox/
 │   ├── ingress.yaml          # Ingress rule → keycloak.localhost
 │   ├── cluster-issuer.yaml   # cert-manager ClusterIssuer (self-signed CA)
 │   └── proxy-headers.yaml    # ConfigMap for nginx proxy headers
-├── app-mock/             # Single-page browser mock of the mobile app
-│   └── index.html
-├── admin-mock/           # Single-page browser admin panel
-│   └── index.html
-├── compose.yml           # Podman Compose stack (6 services)
+├── app-mock-react/       # React/TypeScript/Vite/Tailwind mock of the mobile app
+│   ├── dist/                 # Built output served by Caddy (run npm run build)
+│   └── src/                  # App source (screens, components, services, hooks, types)
+├── admin-mock-react/     # React/TypeScript/Vite/Tailwind admin panel
+│   ├── dist/                 # Built output served by Caddy (run npm run build)
+│   └── src/                  # Admin source (App.tsx, components, services, hooks, types)
+├── home/                 # Developer start page (static HTML with links to all services)
+├── tofu/                 # OpenTofu (Terraform) configuration for Keycloak realm setup
+│   ├── realm.tf              # Realm, clients, IDP, auth flow definitions
+│   ├── idp_and_flow.tf       # Identity provider and authentication flow
+│   ├── providers.tf          # Keycloak provider config
+│   ├── variables.tf          # Input variables
+│   ├── outputs.tf            # Output values
+│   ├── versions.tf           # Provider version constraints
+│   └── terraform.tfvars.example  # Variable template
+├── compose.yml           # Podman Compose stack (7 services)
 ├── Caddyfile             # Caddy reverse proxy config (TLS termination for *.localhost)
 ├── e2e-test.sh           # End-to-end test script (curl + openssl)
 ├── postgres-init/        # SQL/shell scripts run by postgres on first start
 │   └── 01-device-login.sh    # Creates device_login user + schema
 ├── .env                  # Local secrets — NOT committed to git
 ├── .env.example          # Secret template with placeholder values
+├── SETUP.md              # Setup guide
 └── project.md            # Minimal project note
 ```
 
@@ -77,6 +89,18 @@ auth-sandbox/
 ---
 
 ## Build / Lint / Test Commands
+
+### app-mock-react / admin-mock-react (React/TypeScript/Vite)
+
+```bash
+# Build app-mock (output → app-mock-react/dist, served by Caddy)
+cd app-mock-react && npm run build
+
+# Build admin-mock (output → admin-mock-react/dist, served by Caddy)
+cd admin-mock-react && npm run build
+```
+
+No container restart is needed after rebuilding — Caddy serves `dist/` via a volume mount.
 
 ### device-login (Spring Boot / Gradle)
 
@@ -116,7 +140,7 @@ npx likec4 validate c4-spec/
 npx likec4 export png c4-spec/ --output ./diagrams/
 ```
 
-There are currently **no automated tests**. When tests are added, this section must be updated with:
+There are currently **no automated tests** for the React frontends. When tests are added, this section must be updated with:
 - How to run the full test suite
 - How to run a single test (e.g., `npx vitest run src/foo.test.ts`)
 
@@ -180,12 +204,13 @@ Deployment node types: `pod`, `kubernetes_cluster`
 
 ## When Writing Application Code
 
-The project will likely grow to include the following services (based on the architecture spec):
+The following services are implemented:
 
-- **Mobile app** — likely React Native or Flutter
-- **Device Login backend** — likely a Go, Rust, or JVM (Kotlin/Java) service
-- **Keycloak extension** — Java/Kotlin (standard Keycloak SPI)
-- **Infrastructure** — Podman Compose (`compose.yml`) with Caddy as TLS-terminating reverse proxy
+- **app-mock-react** — React/TypeScript/Vite/Tailwind mock of the mobile app (browser-based flow testing)
+- **admin-mock-react** — React/TypeScript/Vite/Tailwind admin panel (registration code management, Keycloak sync)
+- **device-login** — Spring Boot 3 / Java 21 backend (device registration, JWT issuance, admin API)
+- **keycloak-extension** — Java Keycloak SPI (`DeviceTokenAuthenticator`) for the JWT Authorization Grant flow
+- **Infrastructure** — Podman Compose (`compose.yml`) with Caddy as TLS-terminating reverse proxy; OpenTofu (`tofu/`) for Keycloak realm setup
 
 When adding a new service or language, update this file with:
 1. The language/framework chosen
@@ -193,6 +218,15 @@ When adding a new service or language, update this file with:
 3. Test commands (full suite and single-test invocation)
 4. Lint/format commands and config file locations
 5. Code style conventions for that language
+
+### Domain Rules (device-login)
+
+- **Keycloak username always equals `userId`** (the pre-provisioned string) — basis for all username lookups
+- `keycloakUserId` is **not** stored on `registration_codes` — Keycloak existence is always checked by username lookup on demand
+- `Device.keycloakUserId` is stored (it IS persisted on devices after registration)
+- A Keycloak user is created immediately when an admin creates a registration code (`AdminService.createRegistrationCode`)
+- During device registration (`DeviceService`), Keycloak user lookup uses `getUserIdByUsername` and recreates the user if it was deleted
+- LSP errors in Java files are typically Lombok artefacts — `./gradlew test` is the source of truth for correctness
 
 ---
 
@@ -234,10 +268,10 @@ When adding a new service or language, update this file with:
 ## Infrastructure Notes
 
 - Local stack runs with **Podman Compose** (`compose.yml`)
-- Three services: `postgres`, `keycloak`, `caddy`
+- **Seven services:** `postgres`, `keycloak`, `device-login`, `app-mock`, `admin-mock`, `home`, `caddy`
 - **Single PostgreSQL instance, two schemas:** `public` (Keycloak default) and `device_login` (device-login service)
 - `postgres-init/01-device-login.sh` runs on first DB start and creates the `device_login` user + schema
-- Caddy handles TLS termination for `keycloak.localhost` (self-signed certificate via `tls internal`)
+- Caddy handles TLS termination for all `*.localhost` domains (self-signed certificate via `tls internal`)
 - Each future service gets its own schema inside the shared DB (no separate DB containers)
 - Keycloak's custom extension (`device_token_ext`) is the only integration point between `device_login` and Keycloak
 
@@ -261,11 +295,17 @@ podman compose logs -f keycloak
 
 - Keycloak Admin UI: **https://keycloak.localhost:8443** (admin / admin-password)
 - device-login API: **https://device-login.localhost:8443**
+- App mock (mobile flow): **https://app-mock.localhost:8443**
+- Admin panel: **https://admin.localhost:8443**
+- Developer start page: **https://home.localhost:8443**
 - Caddy issues a self-signed certificate automatically; add a trust exception in your browser
 - Add to `/etc/hosts` if not already resolved:
   ```
   127.0.0.1  keycloak.localhost
   127.0.0.1  device-login.localhost
+  127.0.0.1  app-mock.localhost
+  127.0.0.1  admin.localhost
+  127.0.0.1  home.localhost
   ```
 
 ### Secrets (`.env`)
@@ -284,6 +324,20 @@ The `.env` file is **not committed** (listed in `.gitignore`). Required variable
 | `JWT_ISSUER` | JWT `iss` claim for device tokens |
 | `JWT_EXPIRATION_SECONDS` | Device token TTL (default: 300) |
 | `CHALLENGE_EXPIRATION_SECONDS` | Challenge TTL (default: 120) |
+| `KEYCLOAK_REALM_URL` | Public realm URL (used in tokens) |
+| `KEYCLOAK_AUTH_ENDPOINT` | OIDC authorization endpoint (internal) |
+| `KEYCLOAK_TOKEN_ENDPOINT` | OIDC token endpoint (internal) |
+| `KEYCLOAK_CLIENT_ID` | OIDC client ID for device-login auth flow |
+| `KEYCLOAK_CLIENT_SECRET` | OIDC client secret |
+| `KEYCLOAK_REDIRECT_URI` | OAuth2 redirect URI for auth callback |
+| `KEYCLOAK_SCOPE` | OIDC scopes (default: `openid profile`) |
+| `KEYCLOAK_ASSERTION_EXPIRATION_SECONDS` | JWT assertion TTL for token exchange (default: 60) |
+| `KEYCLOAK_ADMIN_CLIENT_ID` | Keycloak admin API client ID |
+| `KEYCLOAK_ADMIN_CLIENT_SECRET` | Keycloak admin API client secret |
+| `KEYCLOAK_ADMIN_REALM` | Realm used for admin API token requests |
+| `KEYCLOAK_IDP_ALIAS` | Alias of the device-login Identity Provider in Keycloak |
+| `KEYCLOAK_ADMIN_TOKEN_ENDPOINT` | Token endpoint for admin API (internal URL) |
+| `KEYCLOAK_ADMIN_BASE_URL` | Keycloak base URL for admin REST API (internal) |
 
 ### Legacy Kubernetes Manifests
 

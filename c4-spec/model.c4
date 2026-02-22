@@ -23,6 +23,20 @@ model {
         }
     }
 
+    admin_panel = webapp {
+        description "Admin panel for managing registration codes and devices"
+        -> device_login "Manage registration codes and devices" {
+            description '''
+            Calls the device-login Admin API to create, list, and delete
+            registration codes, list devices, and trigger Keycloak sync.
+            '''
+        }
+    }
+
+    home_page = webapp {
+        description "Developer start page with links to all local services"
+    }
+
     device_login = backend {
         description "Backend for device login"
         -> keycloak.device_token_ext "Exchange device token to OIDC tokens" {
@@ -31,17 +45,21 @@ model {
             '''         
         }
 
-        device_db = database
+        device_db = database {
+            description "Stores devices, registration codes, and challenges"
+        }
 
     }
 
     keycloak = backend {
         description "Identity and Access Management"
         device_token_ext = kc_extension {
-            
+            description "Custom SPI authenticator that validates device JWTs"
         }
         
-        user_db = database
+        user_db = database {
+            description "Stores Keycloak users, sessions, and realm configuration"
+        }
     }
 
     
