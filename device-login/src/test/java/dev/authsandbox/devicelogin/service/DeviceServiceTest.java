@@ -11,8 +11,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.OffsetDateTime;
 import java.util.Optional;
@@ -30,12 +28,10 @@ class DeviceServiceTest {
     @Mock private KeycloakAdminClient keycloakAdminClient;
 
     private DeviceService deviceService;
-    private PasswordEncoder passwordEncoder;
 
     @BeforeEach
     void setUp() {
-        passwordEncoder = new BCryptPasswordEncoder(4);
-        deviceService = new DeviceService(deviceRepository, registrationCodeRepository, keycloakAdminClient, passwordEncoder);
+        deviceService = new DeviceService(deviceRepository, registrationCodeRepository, keycloakAdminClient);
     }
 
     // -----------------------------------------------------------------------
@@ -43,12 +39,12 @@ class DeviceServiceTest {
     // -----------------------------------------------------------------------
 
     @Test
-    void registerDevice_succeedsAndIncrementsUseCount() {
+    void registerDevice_reusesPreCreatedKeycloakUser_andIncrementsUseCount() {
         String plainCode = "secret";
         RegistrationCode regCode = activeCode("alice", "Alice Smith", plainCode, 0);
         when(registrationCodeRepository.findByUserId("alice")).thenReturn(Optional.of(regCode));
         when(deviceRepository.existsByDeviceId("dev-001")).thenReturn(false);
-        when(keycloakAdminClient.createUserWithFederatedIdentity("alice")).thenReturn("kc-uuid-alice");
+        when(keycloakAdminClient.getUserIdByUsername("alice")).thenReturn(Optional.of("kc-uuid-alice"));
         when(deviceRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(registrationCodeRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
@@ -56,6 +52,10 @@ class DeviceServiceTest {
                 new RegisterDeviceRequest("dev-001", "alice", "Alice Smith", plainCode, "pubkey"));
 
         assertThat(response.deviceId()).isEqualTo("dev-001");
+
+        // The pre-created Keycloak user must be reused — no new user should be created.
+        verify(keycloakAdminClient, never()).createUserWithFederatedIdentity(any());
+        verify(keycloakAdminClient, never()).createUserWithFederatedIdentity(any(), any());
 
         ArgumentCaptor<RegistrationCode> captor = ArgumentCaptor.forClass(RegistrationCode.class);
         verify(registrationCodeRepository).save(captor.capture());
@@ -68,16 +68,39 @@ class DeviceServiceTest {
         RegistrationCode regCode = activeCode("bob", "Bob", plainCode, 3);
         when(registrationCodeRepository.findByUserId("bob")).thenReturn(Optional.of(regCode));
         when(deviceRepository.existsByDeviceId("dev-bob-4")).thenReturn(false);
-        when(keycloakAdminClient.createUserWithFederatedIdentity("bob")).thenReturn("kc-uuid-bob");
+        when(keycloakAdminClient.getUserIdByUsername("bob")).thenReturn(Optional.of("kc-uuid-bob"));
         when(deviceRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(registrationCodeRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         deviceService.registerDevice(
                 new RegisterDeviceRequest("dev-bob-4", "bob", "Bob", plainCode, "pubkey"));
 
+        verify(keycloakAdminClient, never()).createUserWithFederatedIdentity(any());
+        verify(keycloakAdminClient, never()).createUserWithFederatedIdentity(any(), any());
+
         ArgumentCaptor<RegistrationCode> captor = ArgumentCaptor.forClass(RegistrationCode.class);
         verify(registrationCodeRepository).save(captor.capture());
         assertThat(captor.getValue().getUseCount()).isEqualTo(4);
+    }
+
+    @Test
+    void registerDevice_createsKeycloakUser_whenUserWasDeletedFromKeycloak() {
+        // The Keycloak user may have been manually deleted since provisioning.
+        // The service must recreate it on demand.
+        RegistrationCode regCode = activeCode("deleted-user", "Deleted User", "secret", 0);
+        when(registrationCodeRepository.findByUserId("deleted-user")).thenReturn(Optional.of(regCode));
+        when(deviceRepository.existsByDeviceId("dev-deleted")).thenReturn(false);
+        when(keycloakAdminClient.getUserIdByUsername("deleted-user")).thenReturn(Optional.empty());
+        when(keycloakAdminClient.createUserWithFederatedIdentity("deleted-user", "Deleted User"))
+                .thenReturn("kc-uuid-new");
+        when(deviceRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(registrationCodeRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        RegisterDeviceResponse response = deviceService.registerDevice(
+                new RegisterDeviceRequest("dev-deleted", "deleted-user", "Deleted User", "secret", "pubkey"));
+
+        assertThat(response.deviceId()).isEqualTo("dev-deleted");
+        verify(keycloakAdminClient).createUserWithFederatedIdentity("deleted-user", "Deleted User");
     }
 
     // -----------------------------------------------------------------------
@@ -158,7 +181,7 @@ class DeviceServiceTest {
         return RegistrationCode.builder()
                 .userId(userId)
                 .name(name)
-                .activationCode(passwordEncoder.encode(plainCode))
+                .activationCode(plainCode)
                 .expiresAt(OffsetDateTime.now().plusHours(24))
                 .useCount(useCount)
                 .build();
@@ -168,7 +191,7 @@ class DeviceServiceTest {
         return RegistrationCode.builder()
                 .userId(userId)
                 .name(name)
-                .activationCode(passwordEncoder.encode(plainCode))
+                .activationCode(plainCode)
                 .expiresAt(OffsetDateTime.now().minusSeconds(1))
                 .useCount(0)
                 .build();

@@ -3,6 +3,7 @@ package dev.authsandbox.devicelogin.controller;
 import dev.authsandbox.devicelogin.dto.AdminDeviceResponse;
 import dev.authsandbox.devicelogin.dto.AdminRegistrationCodeResponse;
 import dev.authsandbox.devicelogin.dto.CreateRegistrationCodeRequest;
+import dev.authsandbox.devicelogin.dto.SyncResult;
 import dev.authsandbox.devicelogin.service.AdminService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -35,6 +36,11 @@ public class AdminController {
             @Valid @RequestBody CreateRegistrationCodeRequest request) {
         AdminRegistrationCodeResponse created = adminService.createRegistrationCode(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
+    }
+
+    @PostMapping("/registration-codes/sync")
+    public SyncResult syncRegistrationCodes() {
+        return adminService.syncKeycloakUsers();
     }
 
     @DeleteMapping("/registration-codes/{id}")

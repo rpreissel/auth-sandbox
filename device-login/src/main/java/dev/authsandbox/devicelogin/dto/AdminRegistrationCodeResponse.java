@@ -7,6 +7,7 @@ public record AdminRegistrationCodeResponse(
         UUID id,
         String userId,
         String name,
+        String activationCode,
         OffsetDateTime expiresAt,
         int useCount,
         OffsetDateTime createdAt

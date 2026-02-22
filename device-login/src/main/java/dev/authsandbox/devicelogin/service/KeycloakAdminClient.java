@@ -11,6 +11,7 @@ import org.springframework.web.client.RestClient;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @Service
 @Slf4j
@@ -32,15 +33,68 @@ public class KeycloakAdminClient {
      * Creates a Keycloak user for the given deviceId as the username, then links it
      * to the device-login IdP via a federated identity.
      *
-     * @param deviceId the device identifier used as both username and IdP subject
+     * @param deviceId    the device identifier used as both username and IdP subject
+     * @param displayName optional full name split into first/last name in Keycloak;
+     *                    pass {@code null} to leave first/last name empty
      * @return the Keycloak user ID (UUID string)
      */
-    public String createUserWithFederatedIdentity(String deviceId) {
+    public String createUserWithFederatedIdentity(String deviceId, String displayName) {
         String adminToken = getAdminToken();
-        String userId = createUser(adminToken, deviceId);
+        String userId = createUser(adminToken, deviceId, displayName);
         linkFederatedIdentity(adminToken, userId, deviceId);
         log.info("Created Keycloak user '{}' with federated identity for device '{}'", userId, deviceId);
         return userId;
+    }
+
+    /**
+     * Convenience overload without a display name.
+     */
+    public String createUserWithFederatedIdentity(String deviceId) {
+        return createUserWithFederatedIdentity(deviceId, null);
+    }
+
+    /**
+     * Looks up a Keycloak user by exact username match.
+     *
+     * @param username the username to look up (equals the userId / deviceId)
+     * @return the Keycloak user UUID, or {@link Optional#empty()} if not found
+     */
+    public Optional<String> getUserIdByUsername(String username) {
+        String adminToken = getAdminToken();
+        String url = adminProperties.baseUrl() + "/admin/realms/" + adminProperties.realm()
+                + "/users?username=" + username + "&exact=true";
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> users = restClient.get()
+                .uri(url)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                .retrieve()
+                .onStatus(status -> !status.is2xxSuccessful(), (req, resp) -> {
+                    throw new KeycloakUpstreamException(
+                            "Failed to look up Keycloak user by username '" + username + "': " + resp.getStatusCode());
+                })
+                .body(List.class);
+
+        if (users == null || users.isEmpty()) {
+            return Optional.empty();
+        }
+        String id = (String) users.get(0).get("id");
+        return Optional.ofNullable(id);
+    }
+
+    /**
+     * Deletes a Keycloak user by username, performing an on-demand lookup first.
+     * Does nothing (logs a warning) if no user with that username exists.
+     *
+     * @param username the username of the user to delete
+     */
+    public void deleteUserByUsername(String username) {
+        Optional<String> keycloakUserId = getUserIdByUsername(username);
+        if (keycloakUserId.isEmpty()) {
+            log.warn("deleteUserByUsername: no Keycloak user found with username '{}' — skipping", username);
+            return;
+        }
+        deleteUser(keycloakUserId.get());
     }
 
     /**
@@ -94,15 +148,24 @@ public class KeycloakAdminClient {
         return (String) response.get("access_token");
     }
 
-    private String createUser(String adminToken, String deviceId) {
+    private String createUser(String adminToken, String deviceId, String displayName) {
         String usersUrl = adminProperties.baseUrl() + "/admin/realms/" + adminProperties.realm() + "/users";
 
-        Map<String, Object> userRepresentation = Map.of(
-                "username", deviceId,
-                "enabled", true,
-                "emailVerified", true,
-                "requiredActions", List.of()
-        );
+        var userRepresentation = new java.util.HashMap<String, Object>();
+        userRepresentation.put("username", deviceId);
+        userRepresentation.put("enabled", true);
+        userRepresentation.put("emailVerified", true);
+        userRepresentation.put("requiredActions", List.of());
+
+        if (displayName != null && !displayName.isBlank()) {
+            int spaceIdx = displayName.indexOf(' ');
+            if (spaceIdx > 0) {
+                userRepresentation.put("firstName", displayName.substring(0, spaceIdx).trim());
+                userRepresentation.put("lastName", displayName.substring(spaceIdx + 1).trim());
+            } else {
+                userRepresentation.put("firstName", displayName.trim());
+            }
+        }
 
         var response = restClient.post()
                 .uri(usersUrl)

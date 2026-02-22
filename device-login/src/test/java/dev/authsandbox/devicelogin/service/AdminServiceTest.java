@@ -2,6 +2,7 @@ package dev.authsandbox.devicelogin.service;
 
 import dev.authsandbox.devicelogin.dto.AdminRegistrationCodeResponse;
 import dev.authsandbox.devicelogin.dto.CreateRegistrationCodeRequest;
+import dev.authsandbox.devicelogin.dto.SyncResult;
 import dev.authsandbox.devicelogin.entity.Device;
 import dev.authsandbox.devicelogin.entity.RegistrationCode;
 import dev.authsandbox.devicelogin.repository.DeviceRepository;
@@ -12,8 +13,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -37,13 +36,10 @@ class AdminServiceTest {
     @Mock private KeycloakAdminClient keycloakAdminClient;
 
     private AdminService adminService;
-    private PasswordEncoder passwordEncoder;
 
     @BeforeEach
     void setUp() {
-        // Use strength 4 in tests to keep BCrypt fast.
-        passwordEncoder = new BCryptPasswordEncoder(4);
-        adminService = new AdminService(registrationCodeRepository, deviceRepository, keycloakAdminClient, passwordEncoder);
+        adminService = new AdminService(registrationCodeRepository, deviceRepository, keycloakAdminClient);
     }
 
     // -----------------------------------------------------------------------
@@ -51,12 +47,16 @@ class AdminServiceTest {
     // -----------------------------------------------------------------------
 
     @Test
-    void createRegistrationCode_persistsHashedActivationCode() {
+    void createRegistrationCode_createsKeycloakUserAndPersistsCode() {
         when(registrationCodeRepository.findByUserId("alice")).thenReturn(Optional.empty());
+        when(keycloakAdminClient.createUserWithFederatedIdentity("alice", "Alice Smith")).thenReturn("kc-uuid-alice");
         when(registrationCodeRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         adminService.createRegistrationCode(
                 new CreateRegistrationCodeRequest("alice", "Alice Smith", "plain-secret", null));
+
+        // Keycloak user must be created at provisioning time.
+        verify(keycloakAdminClient).createUserWithFederatedIdentity("alice", "Alice Smith");
 
         ArgumentCaptor<RegistrationCode> captor = ArgumentCaptor.forClass(RegistrationCode.class);
         verify(registrationCodeRepository).save(captor.capture());
@@ -64,14 +64,15 @@ class AdminServiceTest {
         RegistrationCode saved = captor.getValue();
         assertThat(saved.getUserId()).isEqualTo("alice");
         assertThat(saved.getName()).isEqualTo("Alice Smith");
-        // The stored value must be a BCrypt hash, not the plain-text secret.
-        assertThat(saved.getActivationCode()).startsWith("$2");
-        assertThat(passwordEncoder.matches("plain-secret", saved.getActivationCode())).isTrue();
+        // The activation code must be stored as-is, not hashed.
+        assertThat(saved.getActivationCode()).isEqualTo("plain-secret");
+        // keycloakUserId is no longer stored on RegistrationCode — existence checked by username.
     }
 
     @Test
     void createRegistrationCode_defaultValidityIs24Hours() {
         when(registrationCodeRepository.findByUserId("alice")).thenReturn(Optional.empty());
+        when(keycloakAdminClient.createUserWithFederatedIdentity("alice", "Alice")).thenReturn("kc-uuid-alice");
         when(registrationCodeRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         OffsetDateTime before = OffsetDateTime.now();
@@ -91,6 +92,7 @@ class AdminServiceTest {
     @Test
     void createRegistrationCode_usesCustomValidityWindow() {
         when(registrationCodeRepository.findByUserId("bob")).thenReturn(Optional.empty());
+        when(keycloakAdminClient.createUserWithFederatedIdentity("bob", "Bob")).thenReturn("kc-uuid-bob");
         when(registrationCodeRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         OffsetDateTime before = OffsetDateTime.now();
@@ -119,6 +121,9 @@ class AdminServiceTest {
                         new CreateRegistrationCodeRequest("alice", "Alice", "secret", null)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("alice");
+
+        // No Keycloak call should be made when the code already exists.
+        verifyNoInteractions(keycloakAdminClient);
     }
 
     // -----------------------------------------------------------------------
@@ -126,16 +131,55 @@ class AdminServiceTest {
     // -----------------------------------------------------------------------
 
     @Test
-    void deleteRegistrationCode_deletesExistingEntry() {
+    void deleteRegistrationCode_deletesKeycloakUser_whenNoDeviceRegisteredYet() {
         UUID id = UUID.randomUUID();
         RegistrationCode code = RegistrationCode.builder()
                 .userId("bob")
                 .name("Bob")
-                .activationCode("$2a$hash")
+                .activationCode("secret")
                 .expiresAt(OffsetDateTime.now().plusHours(24))
+                .useCount(0)
                 .build();
         when(registrationCodeRepository.findById(id)).thenReturn(Optional.of(code));
 
+        adminService.deleteRegistrationCode(id);
+
+        verify(keycloakAdminClient).deleteUserByUsername("bob");
+        verify(registrationCodeRepository).delete(code);
+    }
+
+    @Test
+    void deleteRegistrationCode_doesNotDeleteKeycloakUser_whenDeviceAlreadyRegistered() {
+        UUID id = UUID.randomUUID();
+        RegistrationCode code = RegistrationCode.builder()
+                .userId("carol")
+                .name("Carol")
+                .activationCode("secret")
+                .expiresAt(OffsetDateTime.now().plusHours(24))
+                .useCount(1)  // device already registered
+                .build();
+        when(registrationCodeRepository.findById(id)).thenReturn(Optional.of(code));
+
+        adminService.deleteRegistrationCode(id);
+
+        verifyNoInteractions(keycloakAdminClient);
+        verify(registrationCodeRepository).delete(code);
+    }
+
+    @Test
+    void deleteRegistrationCode_continuesIfKeycloakDeletionFails() {
+        UUID id = UUID.randomUUID();
+        RegistrationCode code = RegistrationCode.builder()
+                .userId("eve")
+                .name("Eve")
+                .activationCode("secret")
+                .expiresAt(OffsetDateTime.now().plusHours(24))
+                .useCount(0)
+                .build();
+        when(registrationCodeRepository.findById(id)).thenReturn(Optional.of(code));
+        doThrow(new RuntimeException("Keycloak unavailable")).when(keycloakAdminClient).deleteUserByUsername("eve");
+
+        // Must not throw — Keycloak cleanup failures are logged and ignored.
         adminService.deleteRegistrationCode(id);
 
         verify(registrationCodeRepository).delete(code);
@@ -157,8 +201,10 @@ class AdminServiceTest {
     @Test
     void listRegistrationCodes_returnsAllEntries() {
         OffsetDateTime expires = OffsetDateTime.now().plusHours(24);
-        RegistrationCode r1 = RegistrationCode.builder().userId("u1").name("User 1").activationCode("h1").expiresAt(expires).build();
-        RegistrationCode r2 = RegistrationCode.builder().userId("u2").name("User 2").activationCode("h2").expiresAt(expires).build();
+        RegistrationCode r1 = RegistrationCode.builder().userId("u1").name("User 1").activationCode("h1")
+                .expiresAt(expires).build();
+        RegistrationCode r2 = RegistrationCode.builder().userId("u2").name("User 2").activationCode("h2")
+                .expiresAt(expires).build();
         when(registrationCodeRepository.findAll()).thenReturn(List.of(r1, r2));
 
         List<AdminRegistrationCodeResponse> result = adminService.listRegistrationCodes();
@@ -216,5 +262,67 @@ class AdminServiceTest {
 
         assertThatThrownBy(() -> adminService.deleteDevice(id))
                 .isInstanceOf(NoSuchElementException.class);
+    }
+
+    // -----------------------------------------------------------------------
+    // syncKeycloakUsers
+    // -----------------------------------------------------------------------
+
+    @Test
+    void syncKeycloakUsers_createsKeycloakUsersForCodesWithoutId() {
+        OffsetDateTime expires = OffsetDateTime.now().plusHours(24);
+        RegistrationCode unsynced = RegistrationCode.builder()
+                .userId("frank").name("Frank").activationCode("secret")
+                .expiresAt(expires).build();
+        when(registrationCodeRepository.findAll()).thenReturn(List.of(unsynced));
+        when(keycloakAdminClient.getUserIdByUsername("frank")).thenReturn(Optional.empty());
+        when(keycloakAdminClient.createUserWithFederatedIdentity("frank", "Frank")).thenReturn("kc-uuid-frank");
+
+        SyncResult result = adminService.syncKeycloakUsers();
+
+        verify(keycloakAdminClient).createUserWithFederatedIdentity("frank", "Frank");
+        assertThat(result.synced()).isEqualTo(1);
+        assertThat(result.alreadySynced()).isEqualTo(0);
+        assertThat(result.failed()).isEqualTo(0);
+    }
+
+    @Test
+    void syncKeycloakUsers_skipsCodesAlreadySynced() {
+        OffsetDateTime expires = OffsetDateTime.now().plusHours(24);
+        RegistrationCode synced = RegistrationCode.builder()
+                .userId("grace").name("Grace").activationCode("secret")
+                .expiresAt(expires).build();
+        when(registrationCodeRepository.findAll()).thenReturn(List.of(synced));
+        when(keycloakAdminClient.getUserIdByUsername("grace")).thenReturn(Optional.of("kc-uuid-grace"));
+
+        SyncResult result = adminService.syncKeycloakUsers();
+
+        verify(keycloakAdminClient, never()).createUserWithFederatedIdentity(any(), any());
+        assertThat(result.synced()).isEqualTo(0);
+        assertThat(result.alreadySynced()).isEqualTo(1);
+        assertThat(result.failed()).isEqualTo(0);
+    }
+
+    @Test
+    void syncKeycloakUsers_countsFailuresWithoutAbortingOtherCodes() {
+        OffsetDateTime expires = OffsetDateTime.now().plusHours(24);
+        RegistrationCode failing = RegistrationCode.builder()
+                .userId("henry").name("Henry").activationCode("secret")
+                .expiresAt(expires).build();
+        RegistrationCode succeeding = RegistrationCode.builder()
+                .userId("iris").name("Iris").activationCode("secret")
+                .expiresAt(expires).build();
+        when(registrationCodeRepository.findAll()).thenReturn(List.of(failing, succeeding));
+        when(keycloakAdminClient.getUserIdByUsername("henry")).thenReturn(Optional.empty());
+        when(keycloakAdminClient.getUserIdByUsername("iris")).thenReturn(Optional.empty());
+        when(keycloakAdminClient.createUserWithFederatedIdentity("henry", "Henry"))
+                .thenThrow(new RuntimeException("Keycloak unavailable"));
+        when(keycloakAdminClient.createUserWithFederatedIdentity("iris", "Iris")).thenReturn("kc-uuid-iris");
+
+        SyncResult result = adminService.syncKeycloakUsers();
+
+        assertThat(result.synced()).isEqualTo(1);
+        assertThat(result.alreadySynced()).isEqualTo(0);
+        assertThat(result.failed()).isEqualTo(1);
     }
 }

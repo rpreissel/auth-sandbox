@@ -8,7 +8,6 @@ import dev.authsandbox.devicelogin.repository.DeviceRepository;
 import dev.authsandbox.devicelogin.repository.RegistrationCodeRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,7 +19,6 @@ public class DeviceService {
     private final DeviceRepository deviceRepository;
     private final RegistrationCodeRepository registrationCodeRepository;
     private final KeycloakAdminClient keycloakAdminClient;
-    private final PasswordEncoder passwordEncoder;
 
     @Transactional
     @SuppressWarnings("null")
@@ -43,8 +41,8 @@ public class DeviceService {
             throw new IllegalArgumentException("Name does not match");
         }
 
-        // --- 4. Verify the activation code (BCrypt) ----------------------------
-        if (!passwordEncoder.matches(request.activationCode(), regCode.getActivationCode())) {
+        // --- 4. Verify the activation code -------------------------------------
+        if (!regCode.getActivationCode().equals(request.activationCode())) {
             log.warn("Invalid activation code supplied for userId '{}'", request.userId());
             throw new SecurityException("Invalid activation code");
         }
@@ -54,10 +52,15 @@ public class DeviceService {
             throw new IllegalArgumentException("Device already registered");
         }
 
-        // --- 6. Create the Keycloak user ----------------------------------------
-        // Use the pre-provisioned userId as the Keycloak username so the identity
-        // is stable across device re-registrations (if key rotation is added later).
-        String keycloakUserId = keycloakAdminClient.createUserWithFederatedIdentity(request.userId());
+        // --- 6. Resolve the Keycloak user ----------------------------------------
+        // Look up by username; if the user was deleted since provisioning, create it.
+        String keycloakUserId = keycloakAdminClient.getUserIdByUsername(request.userId())
+                .orElseGet(() -> {
+                    log.warn("Keycloak user for userId '{}' not found at device-registration time; creating now.",
+                            request.userId());
+                    return keycloakAdminClient.createUserWithFederatedIdentity(
+                            request.userId(), regCode.getName());
+                });
 
         // --- 7. Persist the device ---------------------------------------------
         Device device = Device.builder()

@@ -88,7 +88,7 @@ services:
     restart: unless-stopped
     command: caddy file-server --root /srv --listen :80
     volumes:
-      - ./admin-mock:/srv:ro
+      - ./admin-mock-react/dist:/srv:ro
 
   home:
     image: caddy:2-alpine

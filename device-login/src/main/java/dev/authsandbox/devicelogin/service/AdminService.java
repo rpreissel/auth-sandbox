@@ -3,13 +3,13 @@ package dev.authsandbox.devicelogin.service;
 import dev.authsandbox.devicelogin.dto.AdminDeviceResponse;
 import dev.authsandbox.devicelogin.dto.AdminRegistrationCodeResponse;
 import dev.authsandbox.devicelogin.dto.CreateRegistrationCodeRequest;
+import dev.authsandbox.devicelogin.dto.SyncResult;
 import dev.authsandbox.devicelogin.entity.Device;
 import dev.authsandbox.devicelogin.entity.RegistrationCode;
 import dev.authsandbox.devicelogin.repository.DeviceRepository;
 import dev.authsandbox.devicelogin.repository.RegistrationCodeRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,7 +29,6 @@ public class AdminService {
     private final RegistrationCodeRepository registrationCodeRepository;
     private final DeviceRepository deviceRepository;
     private final KeycloakAdminClient keycloakAdminClient;
-    private final PasswordEncoder passwordEncoder;
 
     // -----------------------------------------------------------------------
     // Registration codes
@@ -49,7 +48,9 @@ public class AdminService {
             throw new IllegalArgumentException("A registration code for userId '" + request.userId() + "' already exists");
         }
 
-        String hashedCode = passwordEncoder.encode(request.activationCode());
+        // Create the Keycloak user immediately so it is ready when the device registers.
+        // We do not persist the Keycloak UUID — existence is always verified by username lookup.
+        keycloakAdminClient.createUserWithFederatedIdentity(request.userId(), request.name());
 
         int validForHours = request.validForHours() != null ? request.validForHours() : DEFAULT_VALID_FOR_HOURS;
         OffsetDateTime expiresAt = OffsetDateTime.now().plusHours(validForHours);
@@ -57,7 +58,7 @@ public class AdminService {
         RegistrationCode entity = RegistrationCode.builder()
                 .userId(request.userId())
                 .name(request.name())
-                .activationCode(hashedCode)
+                .activationCode(request.activationCode())
                 .expiresAt(expiresAt)
                 .build();
 
@@ -72,8 +73,55 @@ public class AdminService {
     public void deleteRegistrationCode(UUID id) {
         RegistrationCode code = registrationCodeRepository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("Registration code not found: " + id));
+
+        // Remove the pre-created Keycloak user if no device has been registered yet.
+        // Once a device is registered the user is owned by the Device row and must
+        // be cleaned up via deleteDevice instead.
+        if (code.getUseCount() == 0) {
+            try {
+                keycloakAdminClient.deleteUserByUsername(code.getUserId());
+            } catch (Exception ex) {
+                log.warn("Failed to delete Keycloak user for userId '{}' (registration code '{}'): {}",
+                        code.getUserId(), id, ex.getMessage());
+            }
+        }
+
         registrationCodeRepository.delete(code);
         log.info("Deleted registration code id='{}'", id);
+    }
+
+    /**
+     * Ensures every registration code has a corresponding Keycloak user with a
+     * federated identity link. Checks by username whether the user already exists;
+     * creates it if missing. Failures for individual codes are logged but do not
+     * abort the operation — the returned {@link SyncResult} reports the full outcome.
+     */
+    @Transactional
+    public SyncResult syncKeycloakUsers() {
+        List<RegistrationCode> codes = registrationCodeRepository.findAll();
+        int synced = 0;
+        int alreadySynced = 0;
+        int failed = 0;
+
+        for (RegistrationCode code : codes) {
+            try {
+                boolean exists = keycloakAdminClient.getUserIdByUsername(code.getUserId()).isPresent();
+                if (exists) {
+                    alreadySynced++;
+                    log.debug("Sync: Keycloak user already exists for userId='{}'", code.getUserId());
+                } else {
+                    keycloakAdminClient.createUserWithFederatedIdentity(code.getUserId(), code.getName());
+                    synced++;
+                    log.info("Sync: created Keycloak user for userId='{}'", code.getUserId());
+                }
+            } catch (Exception ex) {
+                failed++;
+                log.warn("Sync: failed for userId='{}': {}", code.getUserId(), ex.getMessage());
+            }
+        }
+
+        log.info("Keycloak user sync complete — synced={}, alreadySynced={}, failed={}", synced, alreadySynced, failed);
+        return new SyncResult(synced, alreadySynced, failed);
     }
 
     // -----------------------------------------------------------------------
@@ -117,6 +165,7 @@ public class AdminService {
                 rc.getId(),
                 rc.getUserId(),
                 rc.getName(),
+                rc.getActivationCode(),
                 rc.getExpiresAt(),
                 rc.getUseCount(),
                 rc.getCreatedAt()
