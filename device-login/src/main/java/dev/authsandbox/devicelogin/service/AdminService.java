@@ -13,6 +13,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.UUID;
@@ -21,6 +22,9 @@ import java.util.UUID;
 @RequiredArgsConstructor
 @Slf4j
 public class AdminService {
+
+    /** Default validity window when {@code validForHours} is not specified in the request. */
+    static final int DEFAULT_VALID_FOR_HOURS = 24;
 
     private final RegistrationCodeRepository registrationCodeRepository;
     private final DeviceRepository deviceRepository;
@@ -47,14 +51,19 @@ public class AdminService {
 
         String hashedCode = passwordEncoder.encode(request.activationCode());
 
+        int validForHours = request.validForHours() != null ? request.validForHours() : DEFAULT_VALID_FOR_HOURS;
+        OffsetDateTime expiresAt = OffsetDateTime.now().plusHours(validForHours);
+
         RegistrationCode entity = RegistrationCode.builder()
                 .userId(request.userId())
                 .name(request.name())
                 .activationCode(hashedCode)
+                .expiresAt(expiresAt)
                 .build();
 
         RegistrationCode saved = registrationCodeRepository.save(entity);
-        log.info("Created registration code id='{}' for userId='{}'", saved.getId(), saved.getUserId());
+        log.info("Created registration code id='{}' for userId='{}', expires at {}",
+                saved.getId(), saved.getUserId(), saved.getExpiresAt());
         return toRegistrationCodeResponse(saved);
     }
 
@@ -108,9 +117,9 @@ public class AdminService {
                 rc.getId(),
                 rc.getUserId(),
                 rc.getName(),
-                rc.isUsed(),
-                rc.getCreatedAt(),
-                rc.getUsedAt()
+                rc.getExpiresAt(),
+                rc.getUseCount(),
+                rc.getCreatedAt()
         );
     }
 

@@ -8,7 +8,8 @@ import java.util.UUID;
 
 /**
  * Pre-provisioned registration entry created by an admin.
- * Allows exactly one device to register by supplying a matching activation code.
+ * A code is valid until {@code expiresAt} and may be used any number of times
+ * within that window — each use registers one device.
  */
 @Entity
 @Table(name = "registration_codes")
@@ -38,20 +39,25 @@ public class RegistrationCode {
     @Column(name = "activation_code", nullable = false)
     private String activationCode;
 
-    /** {@code true} after a device has successfully registered with this entry. */
-    @Column(name = "used", nullable = false)
-    private boolean used;
+    /** Timestamp after which the code is no longer accepted. */
+    @Column(name = "expires_at", nullable = false)
+    private OffsetDateTime expiresAt;
+
+    /** Number of successful device registrations made with this code. */
+    @Column(name = "use_count", nullable = false)
+    private int useCount;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 
-    /** Timestamp of the moment this code was consumed by a device registration. */
-    @Column(name = "used_at")
-    private OffsetDateTime usedAt;
-
     @PrePersist
     protected void onCreate() {
         createdAt = OffsetDateTime.now();
-        used = false;
+        useCount = 0;
+    }
+
+    /** Returns {@code true} if the code has passed its expiry timestamp. */
+    public boolean isExpired() {
+        return OffsetDateTime.now().isAfter(expiresAt);
     }
 }

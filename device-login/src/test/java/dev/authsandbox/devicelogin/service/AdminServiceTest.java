@@ -15,6 +15,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
@@ -22,8 +23,11 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.within;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
+
+import java.time.temporal.ChronoUnit;
 
 @ExtendWith(MockitoExtension.class)
 class AdminServiceTest {
@@ -52,7 +56,7 @@ class AdminServiceTest {
         when(registrationCodeRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         adminService.createRegistrationCode(
-                new CreateRegistrationCodeRequest("alice", "Alice Smith", "plain-secret"));
+                new CreateRegistrationCodeRequest("alice", "Alice Smith", "plain-secret", null));
 
         ArgumentCaptor<RegistrationCode> captor = ArgumentCaptor.forClass(RegistrationCode.class);
         verify(registrationCodeRepository).save(captor.capture());
@@ -66,17 +70,53 @@ class AdminServiceTest {
     }
 
     @Test
+    void createRegistrationCode_defaultValidityIs24Hours() {
+        when(registrationCodeRepository.findByUserId("alice")).thenReturn(Optional.empty());
+        when(registrationCodeRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        OffsetDateTime before = OffsetDateTime.now();
+        adminService.createRegistrationCode(
+                new CreateRegistrationCodeRequest("alice", "Alice", "secret", null));
+        OffsetDateTime after = OffsetDateTime.now();
+
+        ArgumentCaptor<RegistrationCode> captor = ArgumentCaptor.forClass(RegistrationCode.class);
+        verify(registrationCodeRepository).save(captor.capture());
+
+        OffsetDateTime expiresAt = captor.getValue().getExpiresAt();
+        assertThat(expiresAt).isAfterOrEqualTo(before.plusHours(AdminService.DEFAULT_VALID_FOR_HOURS));
+        assertThat(expiresAt).isBeforeOrEqualTo(after.plusHours(AdminService.DEFAULT_VALID_FOR_HOURS)
+                .plus(1, ChronoUnit.SECONDS));
+    }
+
+    @Test
+    void createRegistrationCode_usesCustomValidityWindow() {
+        when(registrationCodeRepository.findByUserId("bob")).thenReturn(Optional.empty());
+        when(registrationCodeRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        OffsetDateTime before = OffsetDateTime.now();
+        adminService.createRegistrationCode(
+                new CreateRegistrationCodeRequest("bob", "Bob", "secret", 48));
+
+        ArgumentCaptor<RegistrationCode> captor = ArgumentCaptor.forClass(RegistrationCode.class);
+        verify(registrationCodeRepository).save(captor.capture());
+
+        OffsetDateTime expiresAt = captor.getValue().getExpiresAt();
+        assertThat(expiresAt).isCloseTo(before.plusHours(48), within(5, ChronoUnit.SECONDS));
+    }
+
+    @Test
     void createRegistrationCode_throwsIllegalArgument_forDuplicateUserId() {
         RegistrationCode existing = RegistrationCode.builder()
                 .userId("alice")
                 .name("Alice")
                 .activationCode("$2a$hash")
+                .expiresAt(OffsetDateTime.now().plusHours(24))
                 .build();
         when(registrationCodeRepository.findByUserId("alice")).thenReturn(Optional.of(existing));
 
         assertThatThrownBy(() ->
                 adminService.createRegistrationCode(
-                        new CreateRegistrationCodeRequest("alice", "Alice", "secret")))
+                        new CreateRegistrationCodeRequest("alice", "Alice", "secret", null)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("alice");
     }
@@ -92,6 +132,7 @@ class AdminServiceTest {
                 .userId("bob")
                 .name("Bob")
                 .activationCode("$2a$hash")
+                .expiresAt(OffsetDateTime.now().plusHours(24))
                 .build();
         when(registrationCodeRepository.findById(id)).thenReturn(Optional.of(code));
 
@@ -115,8 +156,9 @@ class AdminServiceTest {
 
     @Test
     void listRegistrationCodes_returnsAllEntries() {
-        RegistrationCode r1 = RegistrationCode.builder().userId("u1").name("User 1").activationCode("h1").build();
-        RegistrationCode r2 = RegistrationCode.builder().userId("u2").name("User 2").activationCode("h2").build();
+        OffsetDateTime expires = OffsetDateTime.now().plusHours(24);
+        RegistrationCode r1 = RegistrationCode.builder().userId("u1").name("User 1").activationCode("h1").expiresAt(expires).build();
+        RegistrationCode r2 = RegistrationCode.builder().userId("u2").name("User 2").activationCode("h2").expiresAt(expires).build();
         when(registrationCodeRepository.findAll()).thenReturn(List.of(r1, r2));
 
         List<AdminRegistrationCodeResponse> result = adminService.listRegistrationCodes();

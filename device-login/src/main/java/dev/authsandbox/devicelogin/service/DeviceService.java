@@ -12,8 +12,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.OffsetDateTime;
-
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -33,10 +31,10 @@ public class DeviceService {
                 .findByUserId(request.userId())
                 .orElseThrow(() -> new IllegalArgumentException("Unknown userId"));
 
-        // --- 2. Verify that the entry has not already been consumed ------------
-        if (regCode.isUsed()) {
-            // Return the same generic message as for an unknown userId to avoid
-            // leaking information about whether the userId exists.
+        // --- 2. Verify that the entry has not expired --------------------------
+        // Return the same generic message as for an unknown userId to avoid
+        // leaking information about whether the userId exists.
+        if (regCode.isExpired()) {
             throw new IllegalArgumentException("Unknown userId");
         }
 
@@ -71,13 +69,12 @@ public class DeviceService {
                 .build();
         deviceRepository.save(device);
 
-        // --- 8. Mark the registration code as consumed -------------------------
-        regCode.setUsed(true);
-        regCode.setUsedAt(OffsetDateTime.now());
+        // --- 8. Increment the use counter on the registration code -------------
+        regCode.setUseCount(regCode.getUseCount() + 1);
         registrationCodeRepository.save(regCode);
 
-        log.info("Registered device '{}' for userId '{}' (keycloak user: {})",
-                request.deviceId(), request.userId(), keycloakUserId);
+        log.info("Registered device '{}' for userId '{}' (keycloak user: {}, code use count: {})",
+                request.deviceId(), request.userId(), keycloakUserId, regCode.getUseCount());
 
         return new RegisterDeviceResponse(request.deviceId(), "Device registered successfully");
     }

@@ -7,7 +7,7 @@ public record AdminRegistrationCodeResponse(
         UUID id,
         String userId,
         String name,
-        boolean used,
-        OffsetDateTime createdAt,
-        OffsetDateTime usedAt
+        OffsetDateTime expiresAt,
+        int useCount,
+        OffsetDateTime createdAt
 ) {}
