@@ -1,0 +1,15 @@
+# Copy to terraform.tfvars and fill in the sensitive values.
+# Never commit terraform.tfvars to version control.
+
+keycloak_admin_password          = "change-me-keycloak-admin-password"
+device_login_client_secret       = "change-me-device-login-client-secret"
+device_login_admin_client_secret = "change-me-device-login-admin-secret"
+
+# Optional overrides (defaults match .env.example)
+# keycloak_url             = "https://keycloak.localhost:8443"
+# keycloak_admin_username  = "admin"
+# realm_id                 = "auth-sandbox"
+# device_login_redirect_uri = "https://device-login.localhost:8443/api/v1/auth/callback"
+# device_login_idp_alias   = "device-login-idp"
+# jwt_issuer               = "https://device-login.localhost:8443"
+# device_login_jwks_url    = "https://device-login.localhost:8443/api/v1/auth/.well-known/jwks.json"
