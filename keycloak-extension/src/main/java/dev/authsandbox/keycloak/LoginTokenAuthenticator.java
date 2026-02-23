@@ -31,9 +31,9 @@ import org.keycloak.services.resources.IdentityBrokerService;
  * <p>After successful validation the user is looked up via {@link FederatedIdentityModel}
  * using the {@code sub} claim from the brokered identity context.
  */
-public class DeviceTokenAuthenticator implements Authenticator {
+public class LoginTokenAuthenticator implements Authenticator {
 
-    private static final Logger LOG = Logger.getLogger(DeviceTokenAuthenticator.class);
+    private static final Logger LOG = Logger.getLogger(LoginTokenAuthenticator.class);
 
     /** Auth session note key injected by Keycloak for extra authorization request params. */
     private static final String LOGIN_TOKEN_NOTE = "client_request_param_login_token";
@@ -156,7 +156,7 @@ public class DeviceTokenAuthenticator implements Authenticator {
                 return;
             }
 
-            LOG.infof("Device token authenticator: authenticated user '%s'", user.getUsername());
+            LOG.infof("Login token authenticator: authenticated user '%s'", user.getUsername());
             context.setUser(user);
             context.success();
 

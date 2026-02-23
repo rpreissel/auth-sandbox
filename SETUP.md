@@ -111,7 +111,7 @@ Create and configure the following (in order):
    - Provider type: *JWT Authorization Grant (identity provider)*
    - JWKS URL: `https://device-login.localhost:8443/api/v1/auth/.well-known/jwks.json`
    - Issuer: value of `JWT_ISSUER` from `.env`
-5. **Authentication flow** using the `DeviceTokenAuthenticator` SPI execution, bound to the `device-login-idp` IdP
+5. **Authentication flow** using the `LoginTokenAuthenticator` SPI execution, bound to the `device-login-idp` IdP
 
 ---
 

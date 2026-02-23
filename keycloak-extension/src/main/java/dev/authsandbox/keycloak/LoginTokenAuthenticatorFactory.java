@@ -8,11 +8,11 @@ import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionFactory;
 import java.util.List;
 
-public class DeviceTokenAuthenticatorFactory implements AuthenticatorFactory {
+public class LoginTokenAuthenticatorFactory implements AuthenticatorFactory {
 
-    public static final String PROVIDER_ID = "device-token-authenticator";
+    public static final String PROVIDER_ID = "login-token-authenticator";
 
-    private static final DeviceTokenAuthenticator SINGLETON = new DeviceTokenAuthenticator();
+    private static final LoginTokenAuthenticator SINGLETON = new LoginTokenAuthenticator();
 
     @Override
     public String getId() {
@@ -21,12 +21,12 @@ public class DeviceTokenAuthenticatorFactory implements AuthenticatorFactory {
 
     @Override
     public String getDisplayType() {
-        return "Device Token Authenticator";
+        return "Login Token Authenticator";
     }
 
     @Override
     public String getReferenceCategory() {
-        return "device-token";
+        return "login-token";
     }
 
     @Override

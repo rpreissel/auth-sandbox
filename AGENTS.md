@@ -32,7 +32,7 @@ auth-sandbox/
 ├── keycloak-extension/   # Keycloak SPI authenticator (Java/Gradle)
 │   ├── build.gradle          # Gradle build config
 │   ├── settings.gradle       # Gradle settings
-│   └── src/                  # SPI source (DeviceTokenAuthenticator)
+│   └── src/                  # SPI source (LoginTokenAuthenticator)
 ├── keycloak/             # Legacy Kubernetes manifests (kept for reference)
 │   ├── namespace.yaml        # keycloak namespace
 │   ├── postgres-secret.yaml  # PostgreSQL credentials (dev only)
@@ -209,7 +209,7 @@ The following services are implemented:
 - **app-mock-react** — React/TypeScript/Vite/Tailwind mock of the mobile app (browser-based flow testing)
 - **admin-mock-react** — React/TypeScript/Vite/Tailwind admin panel (registration code management, Keycloak sync)
 - **device-login** — Spring Boot 3 / Java 21 backend (device registration, JWT issuance, admin API)
-- **keycloak-extension** — Java Keycloak SPI (`DeviceTokenAuthenticator`) for the JWT Authorization Grant flow
+- **keycloak-extension** — Java Keycloak SPI (`LoginTokenAuthenticator`) for the JWT Authorization Grant flow
 - **Infrastructure** — Podman Compose (`compose.yml`) with Caddy as TLS-terminating reverse proxy; OpenTofu (`tofu/`) for Keycloak realm setup
 
 When adding a new service or language, update this file with:

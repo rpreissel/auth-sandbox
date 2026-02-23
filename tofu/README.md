@@ -69,11 +69,11 @@ Der `iss`-Claim im Device-JWT wird gegen den konfigurierten Issuer-Wert geprüft
 
 ---
 
-## Authentication Flow `device-token-flow`
+## Authentication Flow `login-token-flow`
 
 Keycloak führt bei jeder Anmeldung über einen Identity Provider einen konfigurierten Authentication Flow aus. Der Standard-Flow (`first broker login`) ist für das erstmalige Verknüpfen eines sozialen Logins mit einem lokalen Konto gedacht — er fragt nach E-Mail-Bestätigung, zeigt Profilseiten und ist für maschinelle Device-Authentifizierung ungeeignet.
 
-Der custom Flow `device-token-flow` enthält genau eine Execution: den **`DeviceTokenAuthenticator`**, der im Keycloak-Extension-JAR (`keycloak-extension/`) implementiert ist. Dieser Authenticator prüft, ob der als `login_token` übergebene JWT alle nötigen Claims enthält (insbesondere das Subject, das Keycloak als User-ID interpretiert) und gibt den Authentifizierungsschritt als erfolgreich zurück, ohne weitere Interaktion zu fordern.
+Der custom Flow `login-token-flow` enthält genau eine Execution: den **`LoginTokenAuthenticator`**, der im Keycloak-Extension-JAR (`keycloak-extension/`) implementiert ist. Dieser Authenticator prüft, ob der als `login_token` übergebene JWT alle nötigen Claims enthält (insbesondere das Subject, das Keycloak als User-ID interpretiert) und gibt den Authentifizierungsschritt als erfolgreich zurück, ohne weitere Interaktion zu fordern.
 
 Die Execution ist als **REQUIRED** konfiguriert: schlägt sie fehl, bricht der gesamte Flow ab und Keycloak stellt keine Tokens aus. Gibt es keinen gültigen Device-JWT, gibt es keine OIDC-Tokens.
 
@@ -90,8 +90,8 @@ Realm auth-sandbox
 │   └── Service Account Rollen        ← view-users, manage-users, manage-identity-providers
 ├── Identity Provider device-login-idp
 │   └── validiert Device-JWTs via JWKS
-└── Authentication Flow device-token-flow
-    └── DeviceTokenAuthenticator      ← aus keycloak-extension/
+└── Authentication Flow login-token-flow
+    └── LoginTokenAuthenticator      ← aus keycloak-extension/
         └── gebunden an device-login-idp als Post-Login-Flow
 ```
 
@@ -111,4 +111,4 @@ tofu apply
 
 `terraform.tfvars` enthält Secrets und ist über `.gitignore` vom Commit ausgeschlossen.
 
-**Voraussetzung:** Das Keycloak-Extension-JAR muss vor `podman compose up` gebaut worden sein (`cd keycloak-extension && ./gradlew jar`), damit der `DeviceTokenAuthenticator`-Provider in Keycloak verfügbar ist, wenn `tofu apply` den Authentication Flow anlegt.
+**Voraussetzung:** Das Keycloak-Extension-JAR muss vor `podman compose up` gebaut worden sein (`cd keycloak-extension && ./gradlew jar`), damit der `LoginTokenAuthenticator`-Provider in Keycloak verfügbar ist, wenn `tofu apply` den Authentication Flow anlegt.

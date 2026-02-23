@@ -87,9 +87,10 @@ data "keycloak_role" "manage_identity_providers" {
   name      = "manage-identity-providers"
 }
 
-resource "keycloak_openid_client_service_account_realm_role" "admin_view_users" {
+resource "keycloak_openid_client_service_account_role" "admin_view_users" {
   realm_id                = keycloak_realm.auth_sandbox.id
   service_account_user_id = keycloak_openid_client.device_login_admin.service_account_user_id
+  client_id               = data.keycloak_openid_client.realm_management.id
   role                    = data.keycloak_role.view_users.name
 }
 

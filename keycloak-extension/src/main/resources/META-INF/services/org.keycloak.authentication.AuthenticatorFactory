@@ -1,1 +1,1 @@
-dev.authsandbox.keycloak.DeviceTokenAuthenticatorFactory
+dev.authsandbox.keycloak.LoginTokenAuthenticatorFactory
