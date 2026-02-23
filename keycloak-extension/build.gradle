@@ -25,6 +25,9 @@ dependencies {
     compileOnly "org.keycloak:keycloak-server-spi-private:${keycloakVersion}"
     compileOnly "org.keycloak:keycloak-services:${keycloakVersion}"
     compileOnly "org.keycloak:keycloak-core:${keycloakVersion}"
+    // UserStoragePrivateUtil.userLocalStorage() — provides direct access to the
+    // Keycloak JPA user store, bypassing the federation chain
+    compileOnly "org.keycloak:keycloak-model-storage-private:${keycloakVersion}"
 }
 
 // Build a fat JAR so Keycloak can pick it up as a single file from /opt/keycloak/providers/
