@@ -5,6 +5,7 @@ tofu/.terraform/
 tofu/.terraform.lock.hcl
 tofu/terraform.tfstate
 tofu/terraform.tfstate.backup
+tofu/terraform.tfstate.*.backup
 
 # JWT key pairs (generated per environment — never commit)
 device-login/keys/
