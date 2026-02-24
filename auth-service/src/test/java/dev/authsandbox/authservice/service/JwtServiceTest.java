@@ -97,13 +97,16 @@ class JwtServiceTest {
 
     @Test
     void issueAndValidateTransferToken() {
-        String token = jwtService.issueTransferToken("urn:ietf:params:oauth:request_uri:abc", "code-verifier-123");
+        String sessionId = "550e8400-e29b-41d4-a716-446655440000";
+        String token = jwtService.issueTransferToken("urn:ietf:params:oauth:request_uri:abc", sessionId);
 
         Claims claims = jwtService.validateTransferToken(token);
 
         assertThat(claims.getSubject()).isEqualTo("transfer");
         assertThat(claims.get("request_uri", String.class)).isEqualTo("urn:ietf:params:oauth:request_uri:abc");
-        assertThat(claims.get("code_verifier", String.class)).isEqualTo("code-verifier-123");
+        // code_verifier is no longer embedded in the JWT — only the opaque session_id is present
+        assertThat(claims.get("session_id", String.class)).isEqualTo(sessionId);
+        assertThat(claims.get("code_verifier", String.class)).isNull();
     }
 
     @Test

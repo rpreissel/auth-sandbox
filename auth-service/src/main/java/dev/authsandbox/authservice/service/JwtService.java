@@ -75,10 +75,18 @@ public class JwtService {
     // -----------------------------------------------------------------------
 
     /**
-     * Issues a short-lived Transfer-JWT containing the PAR request_uri and PKCE code_verifier.
-     * This token is set as an HttpOnly cookie and used to complete the callback.
+     * Issues a short-lived Transfer-JWT containing the PAR {@code request_uri} and an opaque
+     * {@code session_id}.
+     *
+     * <p>The PKCE {@code code_verifier} is intentionally <em>not</em> embedded here; it is
+     * stored server-side in {@code transfer_sessions} and looked up by {@code session_id}
+     * during the {@code /redeem} step.  This prevents the verifier from being exposed in a
+     * URL (browser history, Referer header, access logs).
+     *
+     * @param requestUri PAR {@code request_uri} returned by Keycloak
+     * @param sessionId  opaque identifier linking this JWT to the server-side session row
      */
-    public String issueTransferToken(String requestUri, String codeVerifier) {
+    public String issueTransferToken(String requestUri, String sessionId) {
         Instant now = Instant.now();
         Instant expiry = now.plusSeconds(jwtProperties.transferTokenTtlSeconds());
 
@@ -89,7 +97,7 @@ public class JwtService {
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(expiry))
                 .claim("request_uri", requestUri)
-                .claim("code_verifier", codeVerifier)
+                .claim("session_id", sessionId)
                 .signWith(jwtKeyPair.getPrivate(), Jwts.SIG.RS256)
                 .compact();
     }
