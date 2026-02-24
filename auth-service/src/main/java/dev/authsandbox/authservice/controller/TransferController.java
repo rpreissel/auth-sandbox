@@ -2,7 +2,8 @@ package dev.authsandbox.authservice.controller;
 
 import dev.authsandbox.authservice.dto.InitRequest;
 import dev.authsandbox.authservice.dto.InitResponse;
-import dev.authsandbox.authservice.service.RedeemResult;
+import dev.authsandbox.authservice.dto.RedeemResult;
+import dev.authsandbox.authservice.service.JwtService;
 import dev.authsandbox.authservice.service.TransferService;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
@@ -13,6 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/transfer")
@@ -21,6 +23,7 @@ import java.io.IOException;
 public class TransferController {
 
     private final TransferService transferService;
+    private final JwtService jwtService;
 
     /**
      * POST /api/v1/transfer/init
@@ -85,5 +88,16 @@ public class TransferController {
         response.addCookie(deleteCookie);
 
         response.sendRedirect(targetUrl);
+    }
+
+    /**
+     * GET /api/v1/transfer/.well-known/jwks.json
+     *
+     * <p>Exposes the RSA public key as a JWK Set so Keycloak's
+     * {@code device-login-idp} Identity Provider can verify login_tokens at runtime.
+     */
+    @GetMapping("/.well-known/jwks.json")
+    public ResponseEntity<Map<String, Object>> jwks() {
+        return ResponseEntity.ok(jwtService.toJwkSet());
     }
 }

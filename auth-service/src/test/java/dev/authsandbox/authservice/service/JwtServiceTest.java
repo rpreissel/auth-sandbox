@@ -30,7 +30,6 @@ class JwtServiceTest {
                 "classpath:test-keys/private.pem",
                 "classpath:test-keys/public.pem",
                 ISSUER,
-                300L,
                 60L
         );
         KeycloakProperties keycloakProperties = new KeycloakProperties(
@@ -55,54 +54,10 @@ class JwtServiceTest {
     // -----------------------------------------------------------------------
 
     @Test
-    void issueLoginAssertionToken_returnsSignedToken() {
-        String token = jwtService.issueLoginAssertionToken("user-123");
+    void issueKeycloakAssertionToken_returnsSignedToken() {
+        String token = jwtService.issueKeycloakAssertionToken("user-123");
 
         assertThat(token).isNotBlank();
-    }
-
-    @Test
-    void validateToken_acceptsOwnToken() {
-        String token = jwtService.issueLoginAssertionToken("user-abc");
-
-        Claims claims = jwtService.validateToken(token);
-
-        assertThat(claims.getSubject()).isEqualTo("user-abc");
-        assertThat(claims.getIssuer()).isEqualTo(ISSUER);
-    }
-
-    @Test
-    void validateToken_rejectsTokenIssuedByDifferentKey() throws Exception {
-        KeyPairGenerator gen = KeyPairGenerator.getInstance("RSA");
-        gen.initialize(2048);
-        KeyPair otherKeyPair = gen.generateKeyPair();
-
-        JwtProperties jwtProperties = new JwtProperties(
-                "classpath:test-keys/private.pem",
-                "classpath:test-keys/public.pem",
-                ISSUER,
-                300L,
-                60L
-        );
-        KeycloakProperties keycloakProperties = new KeycloakProperties(
-                REALM_URL,
-                "https://keycloak.test/auth",
-                "https://keycloak.test/auth-public",
-                "https://keycloak.test/token",
-                "https://keycloak.test/par",
-                "https://keycloak.test/introspect",
-                "device-login-client",
-                "secret",
-                "https://device-login.test/callback",
-                "https://sso-proxy.test/callback",
-                "openid profile",
-                60L
-        );
-        JwtService otherService = new JwtService(otherKeyPair, jwtProperties, keycloakProperties);
-        String tokenFromOtherKey = otherService.issueLoginAssertionToken("user-xyz");
-
-        assertThatThrownBy(() -> jwtService.validateToken(tokenFromOtherKey))
-                .isInstanceOf(Exception.class);
     }
 
     @Test
@@ -122,8 +77,8 @@ class JwtServiceTest {
     // -----------------------------------------------------------------------
 
     @Test
-    void issueLoginToken_returnsSignedToken() {
-        String token = jwtService.issueLoginToken("user-456");
+    void issueKeycloakAssertionToken_returnsSignedToken_forTransferFlow() {
+        String token = jwtService.issueKeycloakAssertionToken("user-456");
 
         assertThat(token).isNotBlank();
     }

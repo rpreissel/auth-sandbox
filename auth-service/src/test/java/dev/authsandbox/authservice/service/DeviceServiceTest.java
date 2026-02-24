@@ -54,7 +54,6 @@ class DeviceServiceTest {
         assertThat(response.deviceId()).isEqualTo("dev-001");
 
         // The pre-created Keycloak user must be reused — no new user should be created.
-        verify(keycloakAdminClient, never()).createUserWithFederatedIdentity(any());
         verify(keycloakAdminClient, never()).createUserWithFederatedIdentity(any(), any());
 
         ArgumentCaptor<RegistrationCode> captor = ArgumentCaptor.forClass(RegistrationCode.class);
@@ -75,7 +74,6 @@ class DeviceServiceTest {
         deviceService.registerDevice(
                 new RegisterDeviceRequest("dev-bob-4", "bob", "Bob", plainCode, "pubkey"));
 
-        verify(keycloakAdminClient, never()).createUserWithFederatedIdentity(any());
         verify(keycloakAdminClient, never()).createUserWithFederatedIdentity(any(), any());
 
         ArgumentCaptor<RegistrationCode> captor = ArgumentCaptor.forClass(RegistrationCode.class);

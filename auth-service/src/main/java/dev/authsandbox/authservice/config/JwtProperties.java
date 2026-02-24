@@ -7,6 +7,5 @@ public record JwtProperties(
         String privateKeyPath,
         String publicKeyPath,
         String issuer,
-        long expirationSeconds,
         long transferTokenTtlSeconds
 ) {}

@@ -1,4 +1,4 @@
-package dev.authsandbox.authservice.service;
+package dev.authsandbox.authservice.dto;
 
 /**
  * Holds the result of a transfer token redeem operation.

@@ -5,6 +5,7 @@ import dev.authsandbox.authservice.config.KeycloakProperties;
 import dev.authsandbox.authservice.dto.InitRequest;
 import dev.authsandbox.authservice.dto.InitResponse;
 import dev.authsandbox.authservice.dto.PushedAuthorizationResponse;
+import dev.authsandbox.authservice.dto.RedeemResult;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import jakarta.servlet.http.Cookie;
@@ -67,8 +68,8 @@ public class TransferService {
         // 2. Ensure the user has a sso-proxy-idp federated identity link
         keycloakAdminClient.ensureSsoProxyFederatedIdentityLink(userId);
 
-        // 3. Issue login_token
-        String loginToken = jwtService.issueLoginToken(userId);
+        // 3. Issue Keycloak assertion token
+        String loginToken = jwtService.issueKeycloakAssertionToken(userId);
 
         // 4. Issue state JWT (carries targetUrl + nonce)
         String stateJwt = jwtService.issueStateToken(request.targetUrl());

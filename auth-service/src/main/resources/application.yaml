@@ -45,7 +45,6 @@ app:
     private-key-path: ${JWT_PRIVATE_KEY_PATH:/etc/auth-service/keys/private.pem}
     public-key-path: ${JWT_PUBLIC_KEY_PATH:/etc/auth-service/keys/public.pem}
     issuer: ${JWT_ISSUER:https://device-login.localhost:8443}
-    expiration-seconds: ${JWT_EXPIRATION_SECONDS:300}
     transfer-token-ttl-seconds: ${TRANSFER_TOKEN_TTL_SECONDS:60}
 
   challenge:

@@ -31,21 +31,23 @@ public class JwtService {
     private final KeycloakProperties keycloakProperties;
 
     // -----------------------------------------------------------------------
-    // Device-login tokens
+    // Keycloak assertion tokens (device-login + SSO transfer flows)
     // -----------------------------------------------------------------------
 
     /**
-     * Issues a login assertion token for the device auth flow (kid = device-login-key).
-     * Keycloak's device-login-idp verifies these tokens.
+     * Issues a signed Keycloak assertion JWT for the given userId (kid = device-login-key).
+     * Used by both the device-login and SSO transfer flows; Keycloak's device-login-idp
+     * verifies these tokens.
      */
-    public String issueLoginAssertionToken(String deviceId) {
+    public String issueKeycloakAssertionToken(String userId) {
+        log.debug("Issuing Keycloak assertion token for userId '{}'", userId);
         Instant now = Instant.now();
         Instant expiry = now.plusSeconds(keycloakProperties.assertionExpirationSeconds());
 
-        String token = Jwts.builder()
+        return Jwts.builder()
                 .header().add("kid", KID).and()
                 .id(UUID.randomUUID().toString())
-                .subject(deviceId)
+                .subject(userId)
                 .issuer(jwtProperties.issuer())
                 .audience().add(keycloakProperties.realmUrl()).and()
                 .claim("azp", keycloakProperties.clientId())
@@ -53,18 +55,6 @@ public class JwtService {
                 .expiration(Date.from(expiry))
                 .signWith(jwtKeyPair.getPrivate(), Jwts.SIG.RS256)
                 .compact();
-
-        log.debug("Issued login assertion token for device '{}'", deviceId);
-        return token;
-    }
-
-    public Claims validateToken(String token) {
-        return Jwts.parser()
-                .verifyWith(jwtKeyPair.getPublic())
-                .requireIssuer(jwtProperties.issuer())
-                .build()
-                .parseSignedClaims(token)
-                .getPayload();
     }
 
     /**
@@ -83,30 +73,6 @@ public class JwtService {
     // -----------------------------------------------------------------------
     // SSO transfer tokens
     // -----------------------------------------------------------------------
-
-    /**
-     * Issues a login_token JWT for the given userId (kid = device-login-key).
-     * Keycloak's device-login-idp verifies these tokens (same IDP as device auth).
-     */
-    public String issueLoginToken(String userId) {
-        Instant now = Instant.now();
-        Instant expiry = now.plusSeconds(keycloakProperties.assertionExpirationSeconds());
-
-        String token = Jwts.builder()
-                .header().add("kid", KID).and()
-                .id(UUID.randomUUID().toString())
-                .subject(userId)
-                .issuer(jwtProperties.issuer())
-                .audience().add(keycloakProperties.realmUrl()).and()
-                .claim("azp", keycloakProperties.clientId())
-                .issuedAt(Date.from(now))
-                .expiration(Date.from(expiry))
-                .signWith(jwtKeyPair.getPrivate(), Jwts.SIG.RS256)
-                .compact();
-
-        log.debug("Issued login_token for userId '{}'", userId);
-        return token;
-    }
 
     /**
      * Issues a short-lived Transfer-JWT containing the PAR request_uri and PKCE code_verifier.
@@ -167,6 +133,4 @@ public class JwtService {
                 .parseSignedClaims(token)
                 .getPayload();
     }
-
-
 }

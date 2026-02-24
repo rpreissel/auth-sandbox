@@ -1,10 +1,9 @@
 package dev.authsandbox.authservice.dto;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
-
-public record PushedAuthorizationResponse(
-        @JsonProperty("request_uri") String requestUri,
-        String codeVerifier,
-        String state,
-        long expiresIn
-) {}
+/**
+ * Result of a Pushed Authorization Request (PAR) to Keycloak.
+ *
+ * @param requestUri   the {@code request_uri} returned by Keycloak's PAR endpoint
+ * @param codeVerifier the PKCE code_verifier generated for this request
+ */
+public record PushedAuthorizationResponse(String requestUri, String codeVerifier) {}

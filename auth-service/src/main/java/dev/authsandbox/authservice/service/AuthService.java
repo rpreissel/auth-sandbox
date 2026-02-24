@@ -5,11 +5,11 @@ import dev.authsandbox.authservice.dto.KeycloakTokenResponse;
 import dev.authsandbox.authservice.dto.StartLoginRequest;
 import dev.authsandbox.authservice.dto.StartLoginResponse;
 import dev.authsandbox.authservice.dto.VerifyChallengeRequest;
-import dev.authsandbox.authservice.dto.VerifyChallengeResponse;
 import dev.authsandbox.authservice.entity.Challenge;
 import dev.authsandbox.authservice.entity.Device;
 import dev.authsandbox.authservice.repository.ChallengeRepository;
 import dev.authsandbox.authservice.repository.DeviceRepository;
+import dev.authsandbox.authservice.security.KeyLoader;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -18,11 +18,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
-import java.security.KeyFactory;
 import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Signature;
-import java.security.spec.X509EncodedKeySpec;
 import java.time.OffsetDateTime;
 import java.util.Base64;
 import java.util.HexFormat;
@@ -73,7 +71,7 @@ public class AuthService {
     }
 
     @Transactional
-    public VerifyChallengeResponse verifyChallenge(VerifyChallengeRequest request) {
+    public KeycloakTokenResponse verifyChallenge(VerifyChallengeRequest request) {
         Challenge challenge = challengeRepository.findByNonce(request.nonce())
                 .orElseThrow(() -> new IllegalArgumentException("Invalid nonce"));
 
@@ -104,33 +102,19 @@ public class AuthService {
 
         // The JWT sub must match the federated identity userId registered in Keycloak
         // (createUserWithFederatedIdentity uses userId, not deviceId, as the external subject).
-        String loginToken = jwtService.issueLoginAssertionToken(device.getUserId());
-        log.debug("Issued login assertion token for device '{}' (userId '{}')",
+        String assertionToken = jwtService.issueKeycloakAssertionToken(device.getUserId());
+        log.debug("Issued Keycloak assertion token for device '{}' (userId '{}')",
                 device.getDeviceId(), device.getUserId());
 
-        KeycloakTokenResponse kcTokens = keycloakAuthClient.authenticate(loginToken);
+        KeycloakTokenResponse kcTokens = keycloakAuthClient.authenticate(assertionToken);
         log.info("Authentication successful for device '{}'", device.getDeviceId());
 
-        return new VerifyChallengeResponse(
-                kcTokens.accessToken(),
-                kcTokens.idToken(),
-                kcTokens.refreshToken(),
-                kcTokens.expiresIn(),
-                kcTokens.tokenType(),
-                kcTokens.scope()
-        );
+        return kcTokens;
     }
 
     private boolean verifySignature(String publicKeyPem, String challengeValue, String signatureBase64) {
         try {
-            String stripped = publicKeyPem
-                    .replace("-----BEGIN PUBLIC KEY-----", "")
-                    .replace("-----END PUBLIC KEY-----", "")
-                    .replaceAll("\\s+", "");
-            byte[] keyBytes = Base64.getDecoder().decode(stripped);
-            X509EncodedKeySpec spec = new X509EncodedKeySpec(keyBytes);
-            KeyFactory kf = KeyFactory.getInstance("RSA");
-            PublicKey publicKey = kf.generatePublic(spec);
+            PublicKey publicKey = KeyLoader.parsePublicKey(publicKeyPem);
 
             byte[] signatureBytes = Base64.getUrlDecoder().decode(signatureBase64);
 

@@ -22,7 +22,6 @@ app:
     private-key-path: classpath:test-keys/private.pem
     public-key-path: classpath:test-keys/public.pem
     issuer: https://auth-service.test
-    expiration-seconds: 300
     transfer-token-ttl-seconds: 60
   challenge:
     expiration-seconds: 120

@@ -14,10 +14,6 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.SecureRandom;
-import java.util.Base64;
 import java.util.Map;
 
 @Service
@@ -27,8 +23,6 @@ public class KeycloakTransferClient {
 
     private final KeycloakProperties keycloakProperties;
     private final RestClient restClient;
-
-    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     public KeycloakTransferClient(KeycloakProperties keycloakProperties) {
         this.keycloakProperties = keycloakProperties;
@@ -84,8 +78,8 @@ public class KeycloakTransferClient {
      */
     public PushedAuthorizationResponse pushAuthorizationRequest(
             String loginToken, String stateJwt, String callbackUri) {
-        String codeVerifier  = generateCodeVerifier();
-        String codeChallenge = generateCodeChallenge(codeVerifier);
+        String codeVerifier  = KeycloakAuthClient.generateCodeVerifier();
+        String codeChallenge = KeycloakAuthClient.generateCodeChallenge(codeVerifier);
 
         MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
         body.add("response_type",         "code");
@@ -121,7 +115,7 @@ public class KeycloakTransferClient {
                 : 60L;
 
         log.debug("Received PAR request_uri (expires_in={}s)", expiresIn);
-        return new PushedAuthorizationResponse(requestUri, codeVerifier, stateJwt, expiresIn);
+        return new PushedAuthorizationResponse(requestUri, codeVerifier);
     }
 
     /**
@@ -167,23 +161,5 @@ public class KeycloakTransferClient {
             throw new KeycloakUpstreamException("Empty token response from Keycloak");
         }
         log.debug("Code exchange complete — SSO session established in browser");
-    }
-
-    // ── PKCE helpers (RFC 7636) ───────────────────────────────────────────
-
-    public static String generateCodeVerifier() {
-        byte[] bytes = new byte[32];
-        SECURE_RANDOM.nextBytes(bytes);
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-    }
-
-    public static String generateCodeChallenge(String codeVerifier) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(codeVerifier.getBytes(StandardCharsets.US_ASCII));
-            return Base64.getUrlEncoder().withoutPadding().encodeToString(hash);
-        } catch (Exception e) {
-            throw new IllegalStateException("SHA-256 unavailable", e);
-        }
     }
 }

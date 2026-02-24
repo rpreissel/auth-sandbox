@@ -29,15 +29,21 @@ public final class KeyLoader {
     }
 
     public static PublicKey loadPublicKey(String path) throws Exception {
-        String pem = readPem(path);
+        return parsePublicKey(readPem(path));
+    }
+
+    /**
+     * Parses an RSA public key from a PEM-encoded string.
+     * Accepts both file-loaded and inline PEM strings.
+     */
+    public static PublicKey parsePublicKey(String pem) throws GeneralSecurityException {
         String stripped = pem
                 .replace("-----BEGIN PUBLIC KEY-----", "")
                 .replace("-----END PUBLIC KEY-----", "")
                 .replaceAll("\\s+", "");
         byte[] der = Base64.getDecoder().decode(stripped);
         X509EncodedKeySpec spec = new X509EncodedKeySpec(der);
-        KeyFactory kf = KeyFactory.getInstance("RSA");
-        return kf.generatePublic(spec);
+        return KeyFactory.getInstance("RSA").generatePublic(spec);
     }
 
     private static String readPem(String path) throws Exception {

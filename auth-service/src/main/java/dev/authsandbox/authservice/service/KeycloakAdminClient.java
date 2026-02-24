@@ -30,39 +30,31 @@ public class KeycloakAdminClient {
     }
 
     /**
-     * Creates a Keycloak user for the given deviceId as the username, then links it
+     * Creates a Keycloak user for the given userId as the username, then links it
      * to the device-login IdP via a federated identity.
      *
-     * @param deviceId    the device identifier used as both username and IdP subject
+     * @param userId      the user identifier used as both username and IdP subject
      * @param displayName optional full name split into first/last name in Keycloak;
      *                    pass {@code null} to leave first/last name empty
      * @return the Keycloak user ID (UUID string)
      */
-    public String createUserWithFederatedIdentity(String deviceId, String displayName) {
+    public String createUserWithFederatedIdentity(String userId, String displayName) {
         String adminToken = getAdminToken();
-        String userId = createUser(adminToken, deviceId, displayName);
-        linkFederatedIdentity(adminToken, userId, deviceId, adminProperties.idpAlias());
-        log.info("Created Keycloak user '{}' with federated identity for device '{}'", userId, deviceId);
-        return userId;
-    }
-
-    /**
-     * Convenience overload without a display name.
-     */
-    public String createUserWithFederatedIdentity(String deviceId) {
-        return createUserWithFederatedIdentity(deviceId, null);
+        String keycloakUserId = createUser(adminToken, userId, displayName);
+        linkFederatedIdentity(adminToken, keycloakUserId, userId, adminProperties.idpAlias());
+        log.info("Created Keycloak user '{}' with federated identity for userId '{}'", keycloakUserId, userId);
+        return keycloakUserId;
     }
 
     /**
      * Looks up a Keycloak user by exact username match.
      *
-     * @param username the username to look up (equals the userId / deviceId)
+     * @param username the username to look up (equals the userId)
      * @return the Keycloak user UUID, or {@link Optional#empty()} if not found
      */
     public Optional<String> getUserIdByUsername(String username) {
         String adminToken = getAdminToken();
-        String url = adminProperties.baseUrl() + "/admin/realms/" + adminProperties.realm()
-                + "/users?username=" + username + "&exact=true";
+        String url = usersUrl() + "?username=" + username + "&exact=true";
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> users = restClient.get()
@@ -104,11 +96,9 @@ public class KeycloakAdminClient {
      */
     public void deleteUser(String keycloakUserId) {
         String adminToken = getAdminToken();
-        String userUrl = adminProperties.baseUrl() + "/admin/realms/"
-                + adminProperties.realm() + "/users/" + keycloakUserId;
 
         restClient.delete()
-                .uri(userUrl)
+                .uri(userUrl(keycloakUserId))
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
                 .retrieve()
                 .onStatus(status -> !status.is2xxSuccessful(), (req, resp) -> {
@@ -151,6 +141,16 @@ public class KeycloakAdminClient {
     // Private helpers
     // -----------------------------------------------------------------------
 
+    /** Base URL for the Keycloak users resource in the configured realm. */
+    private String usersUrl() {
+        return adminProperties.baseUrl() + "/admin/realms/" + adminProperties.realm() + "/users";
+    }
+
+    /** URL for a specific Keycloak user by their internal UUID. */
+    private String userUrl(String keycloakUserId) {
+        return usersUrl() + "/" + keycloakUserId;
+    }
+
     private String getAdminToken() {
         MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
         body.add("grant_type", "client_credentials");
@@ -175,11 +175,9 @@ public class KeycloakAdminClient {
         return (String) response.get("access_token");
     }
 
-    private String createUser(String adminToken, String deviceId, String displayName) {
-        String usersUrl = adminProperties.baseUrl() + "/admin/realms/" + adminProperties.realm() + "/users";
-
+    private String createUser(String adminToken, String userId, String displayName) {
         var userRepresentation = new java.util.HashMap<String, Object>();
-        userRepresentation.put("username", deviceId);
+        userRepresentation.put("username", userId);
         userRepresentation.put("enabled", true);
         userRepresentation.put("emailVerified", true);
         userRepresentation.put("requiredActions", List.of());
@@ -195,7 +193,7 @@ public class KeycloakAdminClient {
         }
 
         var response = restClient.post()
-                .uri(usersUrl)
+                .uri(usersUrl())
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(userRepresentation)
@@ -206,21 +204,19 @@ public class KeycloakAdminClient {
                 })
                 .toBodilessEntity();
 
-        // Keycloak returns 201 Created with Location: .../users/{userId}
+        // Keycloak returns 201 Created with Location: .../users/{keycloakUserId}
         var location = response.getHeaders().getLocation();
         if (location == null) {
             throw new KeycloakUpstreamException("No Location header after Keycloak user creation");
         }
         String path = location.getPath();
-        String userId = path.substring(path.lastIndexOf('/') + 1);
-        log.debug("Created Keycloak user with id '{}'", userId);
-        return userId;
+        String keycloakUserId = path.substring(path.lastIndexOf('/') + 1);
+        log.debug("Created Keycloak user with id '{}'", keycloakUserId);
+        return keycloakUserId;
     }
 
-    private void linkFederatedIdentity(String adminToken, String userId, String subject, String idpAlias) {
-        String federatedIdentityUrl = adminProperties.baseUrl() + "/admin/realms/"
-                + adminProperties.realm() + "/users/" + userId
-                + "/federated-identity/" + idpAlias;
+    private void linkFederatedIdentity(String adminToken, String keycloakUserId, String subject, String idpAlias) {
+        String federatedIdentityUrl = userUrl(keycloakUserId) + "/federated-identity/" + idpAlias;
 
         Map<String, String> federatedIdentity = Map.of(
                 "identityProvider", idpAlias,
@@ -240,13 +236,12 @@ public class KeycloakAdminClient {
                 })
                 .toBodilessEntity();
 
-        log.debug("Linked federated identity for user '{}' via IdP '{}'", userId, idpAlias);
+        log.debug("Linked federated identity for user '{}' via IdP '{}'", keycloakUserId, idpAlias);
     }
 
     @SuppressWarnings("unchecked")
     private boolean hasFederatedIdentityLink(String adminToken, String keycloakUserId, String idpAlias) {
-        String url = adminProperties.baseUrl() + "/admin/realms/" + adminProperties.realm()
-                + "/users/" + keycloakUserId + "/federated-identity";
+        String url = userUrl(keycloakUserId) + "/federated-identity";
 
         List<Map<String, Object>> links = restClient.get()
                 .uri(url)
