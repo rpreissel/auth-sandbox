@@ -7,7 +7,7 @@ model {
             description "Stores cryptographic keys for secure communication"
         }
         login = component {
-            -> device_login "Login functionality" {
+            -> auth_service "Login functionality" {
                 description '''
                 Handles user authentication via device login flow.
                 '''
@@ -15,19 +15,72 @@ model {
         }
         binding = component {
             description "Handles device registration and key provisioning"
-            -> device_login "Register device" {
+            -> auth_service "Register device" {
                 description '''
                 Sends public key and device metadata to bind the device.
                 '''
             }
         }
+        transfer = component {
+            description "Initiates browser SSO transfer from authenticated session"
+            -> auth_service "POST /api/v1/transfer/init {accessToken, targetUrl}" {
+                description '''
+                Sends the current Keycloak access token to auth-service;
+                receives a one-time transfer URL (valid 60 s).
+                '''
+            }
+        }
+    }
+
+    auth_service = backend {
+        description "Merged backend: device-login + SSO transfer flows"
+        -> keycloak.device_token_ext "Exchange device token to OIDC tokens" {
+            description '''
+            Manages device tokens for authentication.
+            '''
+        }
+        -> keycloak "POST /token/introspect {accessToken}" {
+            description '''
+            Introspects the incoming access token to verify it is active
+            and extract the userId claim.
+            '''
+        }
+        -> keycloak "POST /ext/par/request {login_token, code_challenge, state}" {
+            description '''
+            Pushes authorization request (PAR, RFC 9126) with a signed
+            login_token assertion, PKCE code_challenge, and state JWT.
+            '''
+        }
+        -> keycloak "POST /token {code, code_verifier, redirect_uri}" {
+            description '''
+            Exchanges the authorization code for OIDC tokens (PKCE).
+            Tokens are used internally to confirm the flow succeeded
+            and then discarded; the browser is redirected to targetUrl.
+            '''
+        }
+
+        device_db = database {
+            description "Stores devices, registration codes, and challenges"
+        }
+    }
+
+    target_app = webapp {
+        description "SSO transfer destination — auto-starts OIDC Auth Code + PKCE flow on load"
+        -> keycloak "OIDC Authorization Code + PKCE" {
+            description '''
+            On load, target-app starts a standard OIDC Auth Code + PKCE flow.
+            The browser sends the Keycloak SSO session cookie automatically;
+            Keycloak issues a code without a login prompt.
+            target-app exchanges the code via Caddy /api/token proxy.
+            '''
+        }
     }
 
     admin_panel = webapp {
         description "Admin panel for managing registration codes and devices"
-        -> device_login "Manage registration codes and devices" {
+        -> auth_service "Manage registration codes and devices" {
             description '''
-            Calls the device-login Admin API to create, list, and delete
+            Calls the auth-service Admin API to create, list, and delete
             registration codes, list devices, and trigger Keycloak sync.
             '''
         }
@@ -37,24 +90,16 @@ model {
         description "Developer start page with links to all local services"
     }
 
-    device_login = backend {
-        description "Backend for device login"
-        -> keycloak.device_token_ext "Exchange device token to OIDC tokens" {
-            description '''            
-            Manages device tokens for authentication.
-            '''         
-        }
-
-        device_db = database {
-            description "Stores devices, registration codes, and challenges"
-        }
-
-    }
-
     keycloak = backend {
         description "Identity and Access Management"
         device_token_ext = kc_extension {
             description "Custom SPI authenticator that validates device JWTs"
+        }
+        device_login_idp = kc_idp {
+            description "JWT Authorization Grant IdP for device-login tokens"
+        }
+        sso_proxy_idp = kc_idp {
+            description "JWT Authorization Grant IdP for sso-proxy login tokens"
         }
         
         user_db = database {

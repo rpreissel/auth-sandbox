@@ -3,11 +3,11 @@ deployment {
         pod keycloak_service {
             instanceOf keycloak
         }
-        pod device_login_service {
-            instanceOf device_login
+        pod auth_service_pod {
+            instanceOf auth_service
         }
         pod postgres_service {
-            instanceOf device_login.device_db
+            instanceOf auth_service.device_db
         }
         pod app_mock_service {
             instanceOf mobile_app
@@ -17,6 +17,9 @@ deployment {
         }
         pod home_service {
             instanceOf home_page
+        }
+        pod target_app_service {
+            instanceOf target_app
         }
     }
 }

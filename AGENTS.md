@@ -6,7 +6,11 @@ Guidance for AI coding agents working in this repository.
 
 ## Project Overview
 
-This is a **mobile authentication project** implementing an OAuth2-style Device Authorization Grant flow using Keycloak as the Identity Provider (IAM), a custom Device Login backend, and a mobile app with a local cryptographic keystore (biometric/PIN-protected).
+This is a **mobile authentication project** implementing two flows:
+1. **Device Authorization Grant** — mobile app registers a device, signs a challenge with a biometric/PIN-protected key, receives a JWT device token, which Keycloak exchanges for OIDC tokens via a custom SPI extension.
+2. **SSO Transfer** — a browser-based SSO handoff: an existing OIDC session is transferred to a second app using a short-lived transfer token and Keycloak's Pushed Authorization Requests (PAR) + JWT Authorization Grant features.
+
+Both flows are served by a single merged backend: **auth-service** (Spring Boot 3 / Java 21).
 
 **Infrastructure target:** Podman Compose (local development) — previously Kind/Kubernetes, migrated to `podman compose`.
 
@@ -21,14 +25,33 @@ auth-sandbox/
 │   ├── model.c4          # System model: actors, components, relationships
 │   ├── deployment.c4     # Deployment topology (Podman Compose)
 │   └── views.c4          # Architecture views (index, deployment, dynamic)
-├── device-login/         # Spring Boot 3 / Java 21 backend service
+├── auth-service/         # Spring Boot 3 / Java 21 — merged backend (device-login + sso-proxy)
 │   ├── Dockerfile            # Multi-stage build (Gradle + Temurin JRE)
 │   ├── build.gradle          # Gradle build config
 │   ├── keys/                 # RSA PEM key pair for JWT signing (not committed)
 │   │   ├── private.pem
 │   │   └── public.pem
-│   ├── k8s/                  # Legacy Kubernetes manifests (reference only)
-│   └── src/                  # Application source
+│   └── src/                  # Application source (package dev.authsandbox.authservice)
+│       ├── main/java/.../
+│       │   ├── AuthServiceApplication.java
+│       │   ├── config/       # AppConfig, JwtProperties, ChallengeProperties,
+│       │   │                 # KeycloakProperties, KeycloakAdminProperties, SecurityConfig
+│       │   ├── security/KeyLoader.java
+│       │   ├── service/      # JwtService, KeycloakAdminClient, KeycloakAuthClient,
+│       │   │                 # KeycloakTransferClient, AuthService, DeviceService,
+│       │   │                 # AdminService, TransferService, KeycloakUpstreamException,
+│       │   │                 # RedeemResult
+│       │   ├── dto/          # 15 request/response records
+│       │   ├── entity/       # Challenge, Device, RegistrationCode
+│       │   ├── repository/   # ChallengeRepository, DeviceRepository,
+│       │   │                 # RegistrationCodeRepository
+│       │   └── controller/   # AuthController, DeviceController, AdminController,
+│       │                     # TransferController, JwksController, GlobalExceptionHandler
+│       └── main/resources/
+│           ├── application.yaml
+│           └── db/migration/ # Flyway V1–V8
+├── device-login/         # LEGACY — kept for reference only; superseded by auth-service
+├── sso-proxy/            # LEGACY — kept for reference only; superseded by auth-service
 ├── keycloak-extension/   # Keycloak SPI authenticator (Java/Gradle)
 │   ├── build.gradle          # Gradle build config
 │   ├── settings.gradle       # Gradle settings
@@ -48,6 +71,9 @@ auth-sandbox/
 ├── admin-mock-react/     # React/TypeScript/Vite/Tailwind admin panel
 │   ├── dist/                 # Built output served by Caddy (run npm run build)
 │   └── src/                  # Admin source (App.tsx, components, services, hooks, types)
+├── target-app-react/     # React/TypeScript/Vite/Tailwind target SPA (OIDC Auth Code + PKCE)
+│   ├── dist/                 # Built output served by Caddy (run npm run build)
+│   └── src/                  # App source
 ├── home/                 # Developer start page (static HTML with links to all services)
 ├── tofu/                 # OpenTofu (Terraform) configuration for Keycloak realm setup
 │   ├── realm.tf              # Realm, clients, IDP, auth flow definitions
@@ -57,7 +83,7 @@ auth-sandbox/
 │   ├── outputs.tf            # Output values
 │   ├── versions.tf           # Provider version constraints
 │   └── terraform.tfvars.example  # Variable template
-├── compose.yml           # Podman Compose stack (7 services)
+├── compose.yml           # Podman Compose stack (8 services)
 ├── Caddyfile             # Caddy reverse proxy config (TLS termination for *.localhost)
 ├── e2e-test.sh           # End-to-end test script (curl + openssl)
 ├── postgres-init/        # SQL/shell scripts run by postgres on first start
@@ -75,16 +101,22 @@ auth-sandbox/
 | Component | Kind | Description |
 |---|---|---|
 | `mobile_app` | mobileapp | Mobile client; contains `keystore` (crypto keys) and `login` (auth flow) |
-| `device_login` | backend | Issues and verifies device JWT tokens; has own PostgreSQL DB (`device_db`) |
+| `auth_service` | backend | Merged backend: device-login + sso-proxy flows; has own PostgreSQL schema (`device_login`) |
 | `keycloak` | backend | IAM; contains `device_token_ext` (custom KC extension) and `user_db` |
 
-**Authentication flow** (see `c4-spec/views.c4` dynamic view `app_login`):
+**Device Authorization flow** (see `c4-spec/views.c4` dynamic view `app_login`):
 1. User initiates login in the mobile app
-2. `mobile_app.login` → `device_login`: start login, receive challenge
+2. `mobile_app.login` → `auth-service`: start login, receive challenge
 3. `mobile_app.keystore`: sign challenge (biometric/PIN gate)
-4. `device_login`: verify signature, issue JWT device token
+4. `auth-service`: verify signature, issue JWT device token
 5. `keycloak.device_token_ext`: exchange device token for OIDC tokens (Code Auth Flow)
 6. OIDC tokens returned to mobile app — user authenticated
+
+**SSO Transfer flow:**
+1. Source app calls `POST /api/v1/transfer/init` with its OIDC access token
+2. `auth-service` introspects the token, ensures the user has a `sso-proxy-idp` federated identity link in Keycloak (creates it if missing), issues a short-lived transfer token, pushes an authorization request (PAR) to Keycloak, returns the redirect URI
+3. Browser is redirected to Keycloak; user is authenticated via the transfer token
+4. Keycloak calls back `GET /api/v1/transfer/callback`; `auth-service` exchanges the code for OIDC tokens and returns them to the target app
 
 ---
 
@@ -102,17 +134,17 @@ cd admin-mock-react && npm run build
 
 No container restart is needed after rebuilding — Caddy serves `dist/` via a volume mount.
 
-### device-login (Spring Boot / Gradle)
+### auth-service (Spring Boot / Gradle)
 
 ```bash
-# Build (produces device-login/build/libs/device-login-*.jar)
-cd device-login && ./gradlew bootJar
+# Build (produces auth-service/build/libs/auth-service-*.jar)
+cd auth-service && ./gradlew bootJar
 
 # Run tests
-cd device-login && ./gradlew test
+cd auth-service && ./gradlew test
 
 # Run a single test class
-cd device-login && ./gradlew test --tests "dev.authsandbox.devicelogin.service.JwtServiceTest"
+cd auth-service && ./gradlew test --tests "dev.authsandbox.authservice.service.JwtServiceTest"
 ```
 
 ### keycloak-extension (Gradle)
@@ -208,7 +240,8 @@ The following services are implemented:
 
 - **app-mock-react** — React/TypeScript/Vite/Tailwind mock of the mobile app (browser-based flow testing)
 - **admin-mock-react** — React/TypeScript/Vite/Tailwind admin panel (registration code management, Keycloak sync)
-- **device-login** — Spring Boot 3 / Java 21 backend (device registration, JWT issuance, admin API)
+- **target-app-react** — React/TypeScript/Vite/Tailwind target SPA (OIDC Auth Code + PKCE)
+- **auth-service** — Spring Boot 3 / Java 21 merged backend (device registration, JWT issuance, admin API, SSO transfer)
 - **keycloak-extension** — Java Keycloak SPI (`LoginTokenAuthenticator`) for the JWT Authorization Grant flow
 - **Infrastructure** — Podman Compose (`compose.yml`) with Caddy as TLS-terminating reverse proxy; OpenTofu (`tofu/`) for Keycloak realm setup
 
@@ -268,12 +301,12 @@ When adding a new service or language, update this file with:
 ## Infrastructure Notes
 
 - Local stack runs with **Podman Compose** (`compose.yml`)
-- **Seven services:** `postgres`, `keycloak`, `device-login`, `app-mock`, `admin-mock`, `home`, `caddy`
-- **Single PostgreSQL instance, two schemas:** `public` (Keycloak default) and `device_login` (device-login service)
+- **Eight services:** `postgres`, `keycloak`, `auth-service`, `app-mock`, `admin-mock`, `target-app`, `home`, `caddy`
+- **Single PostgreSQL instance, two schemas:** `public` (Keycloak default) and `device_login` (auth-service)
 - `postgres-init/01-device-login.sh` runs on first DB start and creates the `device_login` user + schema
 - Caddy handles TLS termination for all `*.localhost` domains (self-signed certificate via `tls internal`)
 - Each future service gets its own schema inside the shared DB (no separate DB containers)
-- Keycloak's custom extension (`device_token_ext`) is the only integration point between `device_login` and Keycloak
+- Keycloak's custom extension (`device_token_ext`) is the only integration point between `auth-service` and Keycloak
 
 ### Stack Setup Commands
 
@@ -294,17 +327,20 @@ podman compose logs -f keycloak
 ### Access
 
 - Keycloak Admin UI: **https://keycloak.localhost:8443** (admin / admin-password)
-- device-login API: **https://device-login.localhost:8443**
+- auth-service API: **https://device-login.localhost:8443** (device/auth flow) / **https://sso-proxy.localhost:8443** (SSO transfer)
 - App mock (mobile flow): **https://app-mock.localhost:8443**
 - Admin panel: **https://admin.localhost:8443**
+- Target app (SSO target): **https://target-app.localhost:8443**
 - Developer start page: **https://home.localhost:8443**
 - Caddy issues a self-signed certificate automatically; add a trust exception in your browser
 - Add to `/etc/hosts` if not already resolved:
   ```
   127.0.0.1  keycloak.localhost
   127.0.0.1  device-login.localhost
+  127.0.0.1  sso-proxy.localhost
   127.0.0.1  app-mock.localhost
   127.0.0.1  admin.localhost
+  127.0.0.1  target-app.localhost
   127.0.0.1  home.localhost
   ```
 
@@ -323,19 +359,24 @@ The `.env` file is **not committed** (listed in `.gitignore`). Required variable
 | `DEVICE_POSTGRES_PASSWORD` | PostgreSQL password for device-login |
 | `JWT_ISSUER` | JWT `iss` claim for device tokens |
 | `JWT_EXPIRATION_SECONDS` | Device token TTL (default: 300) |
+| `TRANSFER_TOKEN_TTL_SECONDS` | SSO transfer token TTL (default: 60) |
 | `CHALLENGE_EXPIRATION_SECONDS` | Challenge TTL (default: 120) |
 | `KEYCLOAK_REALM_URL` | Public realm URL (used in tokens) |
 | `KEYCLOAK_AUTH_ENDPOINT` | OIDC authorization endpoint (internal) |
 | `KEYCLOAK_TOKEN_ENDPOINT` | OIDC token endpoint (internal) |
+| `KEYCLOAK_PAR_ENDPOINT` | PAR endpoint for SSO transfer (internal) |
+| `KEYCLOAK_INTROSPECT_ENDPOINT` | Token introspection endpoint (internal) |
 | `KEYCLOAK_CLIENT_ID` | OIDC client ID for device-login auth flow |
 | `KEYCLOAK_CLIENT_SECRET` | OIDC client secret |
-| `KEYCLOAK_REDIRECT_URI` | OAuth2 redirect URI for auth callback |
+| `KEYCLOAK_REDIRECT_URI` | OAuth2 redirect URI for device-login auth callback |
+| `KEYCLOAK_CALLBACK_URI` | OAuth2 callback URI for SSO transfer callback |
 | `KEYCLOAK_SCOPE` | OIDC scopes (default: `openid profile`) |
 | `KEYCLOAK_ASSERTION_EXPIRATION_SECONDS` | JWT assertion TTL for token exchange (default: 60) |
 | `KEYCLOAK_ADMIN_CLIENT_ID` | Keycloak admin API client ID |
 | `KEYCLOAK_ADMIN_CLIENT_SECRET` | Keycloak admin API client secret |
 | `KEYCLOAK_ADMIN_REALM` | Realm used for admin API token requests |
 | `KEYCLOAK_IDP_ALIAS` | Alias of the device-login Identity Provider in Keycloak |
+| `KEYCLOAK_SSO_PROXY_IDP_ALIAS` | Alias of the sso-proxy Identity Provider in Keycloak |
 | `KEYCLOAK_ADMIN_TOKEN_ENDPOINT` | Token endpoint for admin API (internal URL) |
 | `KEYCLOAK_ADMIN_BASE_URL` | Keycloak base URL for admin REST API (internal) |
 

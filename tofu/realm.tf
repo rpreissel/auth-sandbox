@@ -31,9 +31,16 @@ resource "keycloak_openid_client" "device_login_client" {
   direct_access_grants_enabled = false
   service_accounts_enabled     = false
 
-  valid_redirect_uris = [var.device_login_redirect_uri]
+  valid_redirect_uris = [
+    var.device_login_redirect_uri,
+    var.transfer_callback_uri,
+  ]
 
   client_secret = var.device_login_client_secret
+
+  authentication_flow_binding_overrides {
+    browser_id = keycloak_authentication_flow.login_token_flow.id
+  }
 }
 
 # ---------------------------------------------------------------------------
@@ -106,4 +113,28 @@ resource "keycloak_openid_client_service_account_role" "admin_manage_idps" {
   service_account_user_id = keycloak_openid_client.device_login_admin.service_account_user_id
   client_id               = data.keycloak_openid_client.realm_management.id
   role                    = data.keycloak_role.manage_identity_providers.name
+}
+
+# ---------------------------------------------------------------------------
+# Client: target-app-client  (PUBLIC, PKCE — Auth Code flow from browser SPA)
+# ---------------------------------------------------------------------------
+resource "keycloak_openid_client" "target_app_client" {
+  realm_id  = keycloak_realm.auth_sandbox.id
+  client_id = "target-app-client"
+  name      = "Target App Client"
+  enabled   = true
+
+  access_type = "PUBLIC"
+
+  standard_flow_enabled        = true
+  implicit_flow_enabled        = false
+  direct_access_grants_enabled = false
+  service_accounts_enabled     = false
+
+  # Enforce PKCE S256
+  pkce_code_challenge_method = "S256"
+
+  valid_redirect_uris = [
+    var.target_app_redirect_uri,
+  ]
 }

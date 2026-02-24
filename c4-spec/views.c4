@@ -18,14 +18,14 @@ views {
             -> user                    "Biometric / PIN authorization"
             -> mobile_app.keystore     "Persist private key (protected)"
             -> mobile_app.binding      "Return public key"
-            -> device_login            "POST /devices/register {publicKey, deviceId, userId}"
+            -> auth_service            "POST /devices/register {publicKey, deviceId, userId}"
             -> keycloak                "Verify user identity (Bearer token)"
-            -> device_login            "Identity confirmed — persist device record"
+            -> auth_service            "Identity confirmed — persist device record"
             -> mobile_app.binding      "200 OK — device bound"
             -> user                    "Device successfully registered"
 
         include user, mobile_app, mobile_app.binding, mobile_app.keystore,
-                device_login, keycloak
+                auth_service, keycloak
     }
 
     dynamic view app_login {
@@ -33,25 +33,114 @@ views {
 
         user
             -> mobile_app.login            "Initiates login"
-            -> device_login                "POST /auth/challenge {deviceId}"
+            -> auth_service                "POST /auth/challenge {deviceId}"
             -> mobile_app.login            "Return challenge (nonce, expiry)"
             -> mobile_app.keystore         "Sign challenge with private key"
             -> user                        "Biometric / PIN authorization"
             -> mobile_app.keystore         "Return signed challenge"
             -> mobile_app.login            "Signed challenge available"
-            -> device_login                "POST /auth/verify {deviceId, signedChallenge}"
-            -> device_login                "Verify signature — issue device JWT"
+            -> auth_service                "POST /auth/verify {deviceId, signedChallenge}"
+            -> auth_service                "Verify signature — issue device JWT"
             -> keycloak.device_token_ext   "Exchange device JWT for OIDC tokens" {
                 description '''
                 Code Auth Flow with Device JWT.
                 Extension validates signature, iss, aud, exp.
                 '''
             }
-            -> device_login                "Return OIDC tokens (access + refresh)"
+            -> auth_service                "Return OIDC tokens (access + refresh)"
             -> mobile_app.login            "Store tokens — login complete"
             -> user                        "Authenticated"
 
         include user, mobile_app, mobile_app.login, mobile_app.keystore,
-                device_login, keycloak._
+                auth_service, keycloak._
+    }
+
+    dynamic view browser_transfer {
+        title 'Browser SSO Transfer'
+
+        user
+            -> mobile_app.transfer         "Taps 'In Browser öffnen'"
+            -> auth_service                "POST /api/v1/transfer/init {accessToken, targetUrl}" {
+                description '''
+                App sends its current Keycloak access token and the
+                targetUrl (https://target-app.localhost:8443).
+                '''
+            }
+            -> keycloak                    "POST /token/introspect {accessToken}" {
+                description '''
+                auth-service introspects the token to verify it is active
+                and extract the userId claim.
+                '''
+            }
+            -> auth_service                "Issue login_token JWT for userId"
+            -> auth_service                "Generate PKCE: code_verifier, code_challenge"
+            -> auth_service                "Sign state JWT {targetUrl, nonce}"
+            -> keycloak                    "POST /ext/par/request {login_token, code_challenge, state}" {
+                description '''
+                Pushes authorization request (PAR, RFC 9126) with
+                login_token assertion, code_challenge, and state JWT.
+                Keycloak returns a short-lived request_uri.
+                '''
+            }
+            -> auth_service                "Return request_uri from Keycloak"
+            -> auth_service                "Sign Transfer-JWT {request_uri, code_verifier} (RS256, 60 s)"
+            -> mobile_app.transfer         "Return {transferUrl: /redeem?t=<jwt>, expiresInSeconds: 60}"
+            -> user                        "Display transfer URL + copy button"
+
+        user
+            -> auth_service                "GET /api/v1/transfer/redeem?t=<transferJwt> (separate browser)" {
+                description '''
+                User opens the transfer URL in a separate browser window
+                (no shared cookies with the mobile app session).
+                '''
+            }
+            -> auth_service                "Verify Transfer-JWT — extract request_uri + code_verifier"
+            -> auth_service                "Set HttpOnly cookie: transfer_cv=<code_verifier>; 120 s"
+            -> keycloak                    "302 → /auth?client_id=…&request_uri=<request_uri>" {
+                description '''
+                Browser is redirected to Keycloak's PAR authorization endpoint.
+                Keycloak looks up the pre-pushed request by request_uri.
+                '''
+            }
+            -> keycloak.device_token_ext   "Validate login_token assertion from PAR request" {
+                description '''
+                LoginTokenAuthenticator validates signature, iss, aud, exp
+                of the login_token and authenticates the user, creating
+                a Keycloak SSO session (KEYCLOAK_SESSION cookie).
+                '''
+            }
+            -> auth_service                "302 → /api/v1/transfer/callback?code=…&state=<stateJwt>" {
+                description '''
+                Keycloak issues authorization code and redirects to
+                auth-service's callback URI.
+                '''
+            }
+            -> auth_service                "Verify state-JWT → extract targetUrl; read code_verifier from cookie"
+            -> keycloak                    "POST /token {code, code_verifier, redirect_uri}" {
+                description '''
+                auth-service exchanges the code for tokens (PKCE).
+                Tokens confirm flow succeeded; they are then discarded.
+                '''
+            }
+            -> auth_service                "Delete transfer_cv cookie"
+            -> target_app                  "302 → targetUrl (https://target-app.localhost:8443)" {
+                description '''
+                Browser is redirected to target-app.
+                The Keycloak SSO session cookie travels with the browser.
+                '''
+            }
+            -> keycloak                    "OIDC Auth Code + PKCE (SSO — no login prompt)" {
+                description '''
+                target-app auto-starts OIDC Auth Code + PKCE.
+                Keycloak detects the existing SSO session and issues
+                a code without prompting the user to log in.
+                '''
+            }
+            -> target_app                  "Exchange code for OIDC tokens via /api/token proxy"
+            -> target_app                  "Display Access / ID / Refresh tokens with decoded claims"
+            -> user                        "Authenticated in browser — tokens visible"
+
+        include user, mobile_app.transfer, auth_service, keycloak, keycloak.device_token_ext,
+                target_app
     }
 }

@@ -34,6 +34,18 @@ variable "device_login_redirect_uri" {
   default     = "https://device-login.localhost:8443/api/v1/auth/callback"
 }
 
+variable "transfer_callback_uri" {
+  description = "Redirect URI for the SSO transfer callback (KEYCLOAK_CALLBACK_URI)."
+  type        = string
+  default     = "https://device-login.localhost:8443/api/v1/transfer/callback"
+}
+
+variable "target_app_redirect_uri" {
+  description = "Redirect URI for target-app-client (OIDC Auth Code + PKCE)."
+  type        = string
+  default     = "https://target-app.localhost:8443/callback"
+}
+
 variable "device_login_admin_client_secret" {
   description = "Client secret for device-login-admin (KEYCLOAK_ADMIN_CLIENT_SECRET)."
   type        = string
@@ -47,13 +59,13 @@ variable "device_login_idp_alias" {
 }
 
 variable "jwt_issuer" {
-  description = "Expected issuer (iss) in device JWT tokens (JWT_ISSUER)."
+  description = "Expected issuer (iss) in JWT tokens issued by auth-service (JWT_ISSUER)."
   type        = string
   default     = "https://device-login.localhost:8443"
 }
 
 variable "device_login_jwks_url" {
-  description = "JWKS URL of the device-login service, used by the JWT IdP."
+  description = "JWKS URL of the auth-service, used by the device-login JWT IdP."
   type        = string
-  default     = "https://device-login.localhost:8443/api/v1/auth/.well-known/jwks.json"
+  default     = "http://auth-service:8083/api/v1/auth/.well-known/jwks.json"
 }

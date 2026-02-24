@@ -48,3 +48,4 @@ resource "keycloak_authentication_execution" "login_token_authenticator" {
   authenticator     = "login-token-authenticator"
   requirement       = "REQUIRED"
 }
+

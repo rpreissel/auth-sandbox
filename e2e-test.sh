@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# End-to-end test for the device-login auth flow (with registration codes)
+# End-to-end test for the auth-service device authorization flow (with registration codes)
 set -euo pipefail
 
 BASE="https://device-login.localhost:8443"
 ADMIN_CREDS="admin:admin-password"
 
 # Use the service key pair (already provisioned in the container)
-TMPDIR_KEYS="$(pwd)/device-login/keys"
+TMPDIR_KEYS="$(pwd)/auth-service/keys"
 PRIVATE_KEY="$TMPDIR_KEYS/private.pem"
 PUBLIC_KEY_FILE="$TMPDIR_KEYS/public.pem"
 
@@ -30,7 +30,7 @@ assert_http() {
 }
 
 echo "========================================"
-echo " Device-Login E2E Test"
+echo " auth-service E2E Test"
 echo " Device ID : $DEVICE_ID"
 echo " User ID   : $USER_ID"
 echo "========================================"
@@ -59,9 +59,9 @@ USED=$(python3 -c "
 import json
 codes = json.load(open('/tmp/e2e_list_codes.json'))
 match = [c for c in codes if c['id'] == '$CODE_ID']
-print(match[0]['used'] if match else 'NOT_FOUND')
+print(match[0]['useCount'] if match else 'NOT_FOUND')
 " 2>/dev/null || echo "ERROR")
-if [ "$USED" = "False" ] || [ "$USED" = "false" ]; then
+if [ "$USED" = "0" ]; then
   pass "Registration code is unused"
 else
   fail "Expected code to be unused, got: $USED"
@@ -95,9 +95,9 @@ USED=$(python3 -c "
 import json
 codes = json.load(open('/tmp/e2e_list_codes2.json'))
 match = [c for c in codes if c['id'] == '$CODE_ID']
-print(match[0]['used'] if match else 'NOT_FOUND')
+print(match[0]['useCount'] if match else 'NOT_FOUND')
 " 2>/dev/null || echo "ERROR")
-if [ "$USED" = "True" ] || [ "$USED" = "true" ]; then
+if [ "$USED" = "1" ]; then
   pass "Registration code is now marked used"
 else
   fail "Expected code to be used, got: $USED"

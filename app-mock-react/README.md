@@ -1,6 +1,6 @@
 # app-mock-react
 
-Browser-based mock of the mobile app, simulating the full device registration and login flow against the local `device-login` backend.
+Browser-based mock of the mobile app, simulating the full device registration and login flow against the local `auth-service` backend.
 
 Built with **React 19 / TypeScript / Vite / Tailwind CSS**.
 
@@ -39,7 +39,7 @@ src/
 │   ├── BiometricModal.tsx # Simulated biometric/PIN confirmation dialog
 │   └── ui.tsx            # Shared UI primitives
 ├── services/
-│   ├── api.ts            # device-login REST API calls
+│   ├── api.ts            # auth-service REST API calls
 │   ├── crypto.ts         # Web Crypto API — RSA key generation and signing
 │   └── storage.ts        # localStorage persistence for keys and device state
 ├── hooks/

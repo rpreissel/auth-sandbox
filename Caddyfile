@@ -15,11 +15,11 @@ keycloak.localhost:80 {
     redir https://keycloak.localhost:8443{uri} permanent
 }
 
-# device-login.localhost reverse proxy
+# device-login.localhost reverse proxy → auth-service
 device-login.localhost:443 {
     tls internal
 
-    reverse_proxy device-login:8081 {
+    reverse_proxy auth-service:8083 {
         header_up X-Forwarded-Proto "https"
         header_up X-Forwarded-Port  "8443"
     }
@@ -30,12 +30,12 @@ device-login.localhost:80 {
 }
 
 # app-mock.localhost — mobile app mock UI
-# /api/* is proxied to device-login so the browser stays same-origin (no CORS)
+# /api/* is proxied to auth-service so the browser stays same-origin (no CORS)
 app-mock.localhost:443 {
     tls internal
 
     handle /api/* {
-        reverse_proxy device-login:8081 {
+        reverse_proxy auth-service:8083 {
             header_up X-Forwarded-Proto "https"
             header_up X-Forwarded-Port  "8443"
         }
@@ -51,12 +51,12 @@ app-mock.localhost:80 {
 }
 
 # admin.localhost — admin UI
-# /api/* is proxied to device-login (admin endpoints require Basic Auth)
+# /api/* is proxied to auth-service (admin endpoints require Basic Auth)
 admin.localhost:443 {
     tls internal
 
     handle /api/* {
-        reverse_proxy device-login:8081 {
+        reverse_proxy auth-service:8083 {
             header_up X-Forwarded-Proto "https"
             header_up X-Forwarded-Port  "8443"
         }
@@ -82,4 +82,41 @@ home.localhost:443 {
 
 home.localhost:80 {
     redir https://home.localhost:8443{uri} permanent
+}
+
+# sso-proxy.localhost — SSO browser transfer (served by auth-service)
+sso-proxy.localhost:443 {
+    tls internal
+
+    reverse_proxy auth-service:8083 {
+        header_up X-Forwarded-Proto "https"
+        header_up X-Forwarded-Port  "8443"
+    }
+}
+
+sso-proxy.localhost:80 {
+    redir https://sso-proxy.localhost:8443{uri} permanent
+}
+
+# target-app.localhost — OIDC Auth Code + PKCE target SPA
+# /api/token is proxied to Keycloak to avoid CORS on the token endpoint
+# /callback is served by the SPA (handled client-side by React)
+target-app.localhost:443 {
+    tls internal
+
+    handle /api/token {
+        reverse_proxy keycloak:8080 {
+            rewrite /realms/auth-sandbox/protocol/openid-connect/token
+            header_up X-Forwarded-Proto "https"
+            header_up X-Forwarded-Port  "8443"
+        }
+    }
+
+    handle {
+        reverse_proxy target-app:80
+    }
+}
+
+target-app.localhost:80 {
+    redir https://target-app.localhost:8443{uri} permanent
 }

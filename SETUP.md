@@ -29,8 +29,10 @@ Add the following entries (one-time, requires sudo):
 ```bash
 echo "127.0.0.1  keycloak.localhost" | sudo tee -a /etc/hosts
 echo "127.0.0.1  device-login.localhost" | sudo tee -a /etc/hosts
+echo "127.0.0.1  sso-proxy.localhost" | sudo tee -a /etc/hosts
 echo "127.0.0.1  app-mock.localhost" | sudo tee -a /etc/hosts
 echo "127.0.0.1  admin.localhost" | sudo tee -a /etc/hosts
+echo "127.0.0.1  target-app.localhost" | sudo tee -a /etc/hosts
 echo "127.0.0.1  home.localhost" | sudo tee -a /etc/hosts
 ```
 
@@ -48,14 +50,14 @@ Edit `.env` — at minimum replace every value that starts with `change-me-`.
 
 ---
 
-## 3. RSA Keys (device-login JWT signing)
+## 3. RSA Keys (auth-service JWT signing)
 
-Generate a 4096-bit RSA key pair for the `device-login` service:
+Generate a 4096-bit RSA key pair for the `auth-service`:
 
 ```bash
-mkdir -p device-login/keys
-openssl genrsa -out device-login/keys/private.pem 4096
-openssl rsa -in device-login/keys/private.pem -pubout -out device-login/keys/public.pem
+mkdir -p auth-service/keys
+openssl genrsa -out auth-service/keys/private.pem 4096
+openssl rsa -in auth-service/keys/private.pem -pubout -out auth-service/keys/public.pem
 ```
 
 These files are excluded from git (see `.gitignore`).
@@ -86,11 +88,12 @@ Services started:
 
 | Service | Description |
 |---|---|
-| `postgres` | Shared PostgreSQL 16 (Keycloak + device-login schemas) |
+| `postgres` | Shared PostgreSQL 16 (Keycloak + auth-service schemas) |
 | `keycloak` | Keycloak 26.x in dev mode |
-| `device-login` | Spring Boot authentication backend |
+| `auth-service` | Spring Boot merged backend (device-login + SSO transfer) |
 | `app-mock` | Browser mock of the mobile app |
 | `admin-mock` | Browser admin panel |
+| `target-app` | OIDC Auth Code + PKCE target SPA |
 | `home` | Developer start page with links to all services |
 | `caddy` | TLS-terminating reverse proxy for all `*.localhost` domains |
 
@@ -106,12 +109,16 @@ Create and configure the following (in order):
 
 1. **Realm:** `auth-sandbox`
 2. **Client** `device-login-admin` — Client Credentials grant; use `KEYCLOAK_ADMIN_CLIENT_SECRET` as the secret; assign the `realm-management` roles `view-users`, `manage-users`, `manage-identity-providers`
-3. **Client** `device-login-client` — Standard Flow; use `KEYCLOAK_CLIENT_SECRET` as the secret; add `https://device-login.localhost:8443/api/v1/auth/callback` as a valid redirect URI
-4. **JWT Authorization Grant IdP** (alias: value of `KEYCLOAK_IDP_ALIAS`):
+3. **Client** `device-login-client` — Standard Flow; use `KEYCLOAK_CLIENT_SECRET` as the secret; add `https://device-login.localhost:8443/api/v1/auth/callback` as a valid redirect URI; also add `https://sso-proxy.localhost:8443/api/v1/transfer/callback` as a valid redirect URI
+4. **JWT Authorization Grant IdP** `device-login-idp` (alias: value of `KEYCLOAK_IDP_ALIAS`):
    - Provider type: *JWT Authorization Grant (identity provider)*
    - JWKS URL: `https://device-login.localhost:8443/api/v1/auth/.well-known/jwks.json`
    - Issuer: value of `JWT_ISSUER` from `.env`
-5. **Authentication flow** using the `LoginTokenAuthenticator` SPI execution, bound to the `device-login-idp` IdP
+5. **JWT Authorization Grant IdP** `sso-proxy-idp` (alias: value of `KEYCLOAK_SSO_PROXY_IDP_ALIAS`):
+   - Provider type: *JWT Authorization Grant (identity provider)*
+   - JWKS URL: `https://sso-proxy.localhost:8443/api/v1/transfer/.well-known/jwks.json`
+   - Issuer: value of `JWT_ISSUER` from `.env`
+6. **Authentication flow** using the `LoginTokenAuthenticator` SPI execution, bound to both IdPs
 
 ---
 
@@ -121,9 +128,10 @@ Create and configure the following (in order):
 |---|---|
 | https://home.localhost:8443 | Developer start page (all links at a glance) |
 | https://keycloak.localhost:8443 | Keycloak Admin UI |
-| https://device-login.localhost:8443/actuator/health | device-login health check |
+| https://device-login.localhost:8443/actuator/health | auth-service health check |
 | https://admin.localhost:8443 | Admin mock panel |
 | https://app-mock.localhost:8443 | Mobile app mock |
+| https://target-app.localhost:8443 | SSO transfer target app |
 
 ---
 
@@ -135,7 +143,7 @@ podman compose up -d
 
 # View logs
 podman compose logs -f keycloak
-podman compose logs -f device-login
+podman compose logs -f auth-service
 
 # Stop all services
 podman compose down

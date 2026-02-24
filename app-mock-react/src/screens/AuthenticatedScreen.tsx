@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { parseJwt } from '../services/crypto';
-import { refreshTokens } from '../services/api';
+import { refreshTokens, initiateTransfer } from '../services/api';
 import type { OidcTokens, LogEntry } from '../types';
 
 interface Props {
@@ -16,6 +16,9 @@ export default function AuthenticatedScreen({ tokens, onTokensRefreshed, onLogou
   const [activeTab, setActiveTab] = useState<TabKey>('access');
   const [busy, setBusy]           = useState(false);
   const [error, setError]         = useState('');
+  const [transferUrl, setTransferUrl]     = useState('');
+  const [transferBusy, setTransferBusy]   = useState(false);
+  const [transferred, setTransferred]     = useState(false);
 
   const accessParsed = parseJwt(tokens.access_token);
   const payload      = accessParsed?.payload ?? {};
@@ -40,6 +43,32 @@ export default function AuthenticatedScreen({ tokens, onTokensRefreshed, onLogou
     } finally {
       setBusy(false);
     }
+  }
+
+  async function handleTransfer() {
+    setError('');
+    setTransferUrl('');
+    setTransferred(false);
+    setTransferBusy(true);
+    log('→ Browser-Transfer initiieren…', 'info');
+    try {
+      const result = await initiateTransfer(tokens.access_token);
+      setTransferUrl(result.transferUrl);
+      log(`Transfer-URL generiert (gültig ${result.expiresInSeconds}s).`, 'ok');
+    } catch (err) {
+      const msg = (err as Error).message;
+      setError(msg);
+      log(`Transfer fehlgeschlagen: ${msg}`, 'err');
+    } finally {
+      setTransferBusy(false);
+    }
+  }
+
+  async function copyTransferUrl() {
+    if (!transferUrl) return;
+    await navigator.clipboard.writeText(transferUrl);
+    setTransferred(true);
+    setTimeout(() => setTransferred(false), 2000);
   }
 
   return (
@@ -71,6 +100,38 @@ export default function AuthenticatedScreen({ tokens, onTokensRefreshed, onLogou
         <button className="btn-danger" onClick={onLogout}>
           Abmelden
         </button>
+      </div>
+
+      {/* Browser transfer */}
+      <div className="rounded-xl border border-[--color-border] bg-[--color-surface] p-4 flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-semibold">Browser-Übertragung</span>
+          <button
+            className="btn-secondary text-xs px-3 py-1.5"
+            onClick={handleTransfer}
+            disabled={transferBusy}
+          >
+            {transferBusy ? <><Spinner /> Wird erstellt…</> : '🌐 In Browser öffnen'}
+          </button>
+        </div>
+        <p className="text-xs text-[--color-text-dim] leading-relaxed">
+          Erzeugt eine einmalige Transfer-URL (gültig 60 s). auth-service deposited eine
+          Keycloak SSO-Session und leitet zu target-app weiter, das automatisch OIDC
+          Auth Code + PKCE startet — kein Login-Prompt.
+        </p>
+        {transferUrl && (
+          <div className="flex flex-col gap-2">
+            <div className="bg-[--color-bg] rounded-lg p-3 font-mono text-[10px] break-all text-[--color-accent] max-h-24 overflow-y-auto">
+              {transferUrl}
+            </div>
+            <button
+              className="btn-secondary text-xs self-end px-3 py-1.5"
+              onClick={copyTransferUrl}
+            >
+              {transferred ? '✅ Kopiert!' : '📋 URL kopieren'}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Token viewer */}

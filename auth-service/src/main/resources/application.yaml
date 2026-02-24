@@ -1,0 +1,74 @@
+spring:
+  application:
+    name: auth-service
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/keycloak}
+    username: ${DB_USERNAME:device_login}
+    password: ${DB_PASSWORD:device_login_password}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        default_schema: device_login
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    schemas: device_login
+    default-schema: device_login
+
+server:
+  port: 8083
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+
+app:
+  admin:
+    username: ${KEYCLOAK_ADMIN:admin}
+    password: ${KEYCLOAK_ADMIN_PASSWORD:admin-password}
+
+  jwt:
+    private-key-path: ${JWT_PRIVATE_KEY_PATH:/etc/auth-service/keys/private.pem}
+    public-key-path: ${JWT_PUBLIC_KEY_PATH:/etc/auth-service/keys/public.pem}
+    issuer: ${JWT_ISSUER:https://device-login.localhost:8443}
+    expiration-seconds: ${JWT_EXPIRATION_SECONDS:300}
+    transfer-token-ttl-seconds: ${TRANSFER_TOKEN_TTL_SECONDS:60}
+
+  challenge:
+    expiration-seconds: ${CHALLENGE_EXPIRATION_SECONDS:120}
+
+  keycloak:
+    realm-url: ${KEYCLOAK_REALM_URL:https://keycloak.localhost:8443/realms/auth-sandbox}
+    auth-endpoint: ${KEYCLOAK_AUTH_ENDPOINT:http://keycloak:8080/realms/auth-sandbox/protocol/openid-connect/auth}
+    auth-public-endpoint: ${KEYCLOAK_AUTH_PUBLIC_ENDPOINT:https://keycloak.localhost:8443/realms/auth-sandbox/protocol/openid-connect/auth}
+    token-endpoint: ${KEYCLOAK_TOKEN_ENDPOINT:http://keycloak:8080/realms/auth-sandbox/protocol/openid-connect/token}
+    par-endpoint: ${KEYCLOAK_PAR_ENDPOINT:http://keycloak:8080/realms/auth-sandbox/protocol/openid-connect/ext/par/request}
+    introspect-endpoint: ${KEYCLOAK_INTROSPECT_ENDPOINT:http://keycloak:8080/realms/auth-sandbox/protocol/openid-connect/token/introspect}
+    client-id: ${KEYCLOAK_CLIENT_ID:device-login-client}
+    client-secret: ${KEYCLOAK_CLIENT_SECRET}
+    redirect-uri: ${KEYCLOAK_REDIRECT_URI:https://device-login.localhost:8443/api/v1/auth/callback}
+    callback-uri: ${KEYCLOAK_CALLBACK_URI:https://device-login.localhost:8443/api/v1/transfer/callback}
+    scope: ${KEYCLOAK_SCOPE:openid profile}
+    assertion-expiration-seconds: ${KEYCLOAK_ASSERTION_EXPIRATION_SECONDS:60}
+    admin:
+      client-id: ${KEYCLOAK_ADMIN_CLIENT_ID:device-login-admin}
+      client-secret: ${KEYCLOAK_ADMIN_CLIENT_SECRET}
+      realm: ${KEYCLOAK_ADMIN_REALM:auth-sandbox}
+      idp-alias: ${KEYCLOAK_IDP_ALIAS:device-login-idp}
+      sso-proxy-idp-alias: ${KEYCLOAK_SSO_PROXY_IDP_ALIAS:device-login-idp}
+      token-endpoint: ${KEYCLOAK_ADMIN_TOKEN_ENDPOINT:http://keycloak:8080/realms/auth-sandbox/protocol/openid-connect/token}
+      base-url: ${KEYCLOAK_ADMIN_BASE_URL:http://keycloak:8080}

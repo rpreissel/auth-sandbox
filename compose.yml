@@ -27,7 +27,7 @@ services:
       - --proxy-headers=xforwarded
       - --hostname=https://keycloak.localhost:8443
       - --hostname-strict=false
-      - --features=jwt-authorization-grant
+      - --features=jwt-authorization-grant,par
     env_file: .env
     environment:
       KC_DB: postgres
@@ -40,9 +40,9 @@ services:
       postgres:
         condition: service_healthy
 
-  device-login:
+  auth-service:
     build:
-      context: ./device-login
+      context: ./auth-service
       dockerfile: Dockerfile
     restart: unless-stopped
     env_file: .env
@@ -50,28 +50,34 @@ services:
       DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
       DB_USERNAME: ${DEVICE_POSTGRES_USER}
       DB_PASSWORD: ${DEVICE_POSTGRES_PASSWORD}
-      JWT_PRIVATE_KEY_PATH: /etc/device-login/keys/private.pem
-      JWT_PUBLIC_KEY_PATH: /etc/device-login/keys/public.pem
+      JWT_PRIVATE_KEY_PATH: /etc/auth-service/keys/private.pem
+      JWT_PUBLIC_KEY_PATH: /etc/auth-service/keys/public.pem
       JWT_ISSUER: ${JWT_ISSUER}
       JWT_EXPIRATION_SECONDS: ${JWT_EXPIRATION_SECONDS:-300}
+      TRANSFER_TOKEN_TTL_SECONDS: ${TRANSFER_TOKEN_TTL_SECONDS:-60}
       CHALLENGE_EXPIRATION_SECONDS: ${CHALLENGE_EXPIRATION_SECONDS:-120}
       KEYCLOAK_REALM_URL: ${KEYCLOAK_REALM_URL}
       KEYCLOAK_AUTH_ENDPOINT: ${KEYCLOAK_AUTH_ENDPOINT}
       KEYCLOAK_TOKEN_ENDPOINT: ${KEYCLOAK_TOKEN_ENDPOINT}
+      KEYCLOAK_PAR_ENDPOINT: ${KEYCLOAK_PAR_ENDPOINT}
+      KEYCLOAK_INTROSPECT_ENDPOINT: ${KEYCLOAK_INTROSPECT_ENDPOINT}
       KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID}
       KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET}
       KEYCLOAK_REDIRECT_URI: ${KEYCLOAK_REDIRECT_URI}
+      KEYCLOAK_CALLBACK_URI: ${KEYCLOAK_CALLBACK_URI}
       KEYCLOAK_SCOPE: ${KEYCLOAK_SCOPE:-openid profile}
       KEYCLOAK_ASSERTION_EXPIRATION_SECONDS: ${KEYCLOAK_ASSERTION_EXPIRATION_SECONDS:-60}
       KEYCLOAK_ADMIN_CLIENT_ID: ${KEYCLOAK_ADMIN_CLIENT_ID}
       KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET}
       KEYCLOAK_ADMIN_REALM: ${KEYCLOAK_ADMIN_REALM}
       KEYCLOAK_IDP_ALIAS: ${KEYCLOAK_IDP_ALIAS}
+      KEYCLOAK_SSO_PROXY_IDP_ALIAS: ${KEYCLOAK_SSO_PROXY_IDP_ALIAS}
       KEYCLOAK_ADMIN_TOKEN_ENDPOINT: ${KEYCLOAK_ADMIN_TOKEN_ENDPOINT}
+      KEYCLOAK_ADMIN_BASE_URL: ${KEYCLOAK_ADMIN_BASE_URL}
       KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
     volumes:
-      - ./device-login/keys:/etc/device-login/keys:ro
+      - ./auth-service/keys:/etc/auth-service/keys:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -97,6 +103,14 @@ services:
     volumes:
       - ./home:/srv:ro
 
+
+  target-app:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    volumes:
+      - ./target-app-react/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./target-app-react/dist:/srv:ro
+
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
@@ -109,10 +123,11 @@ services:
       - caddy-config:/config
     depends_on:
       - keycloak
-      - device-login
+      - auth-service
       - app-mock
       - admin-mock
       - home
+      - target-app
 
 volumes:
   keycloak-postgres-data:
