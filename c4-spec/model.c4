@@ -90,6 +90,10 @@ model {
         description "Developer start page with links to all local services"
     }
 
+    caddy = backend {
+        description "TLS-terminating reverse proxy — sole ingress point for all *.localhost services"
+    }
+
     keycloak = backend {
         description "Identity and Access Management"
         device_token_ext = kc_extension {

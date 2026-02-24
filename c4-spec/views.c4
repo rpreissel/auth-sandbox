@@ -18,7 +18,7 @@ views {
             -> user                    "Biometric / PIN authorization"
             -> mobile_app.keystore     "Persist private key (protected)"
             -> mobile_app.binding      "Return public key"
-            -> auth_service            "POST /devices/register {publicKey, deviceId, userId}"
+            -> auth_service            "POST /api/v1/devices/register {publicKey, deviceId, userId}"
             -> keycloak                "Verify user identity (Bearer token)"
             -> auth_service            "Identity confirmed — persist device record"
             -> mobile_app.binding      "200 OK — device bound"
@@ -33,13 +33,13 @@ views {
 
         user
             -> mobile_app.login            "Initiates login"
-            -> auth_service                "POST /auth/challenge {deviceId}"
+            -> auth_service                "POST /api/v1/auth/login/start {deviceId}"
             -> mobile_app.login            "Return challenge (nonce, expiry)"
             -> mobile_app.keystore         "Sign challenge with private key"
             -> user                        "Biometric / PIN authorization"
             -> mobile_app.keystore         "Return signed challenge"
             -> mobile_app.login            "Signed challenge available"
-            -> auth_service                "POST /auth/verify {deviceId, signedChallenge}"
+            -> auth_service                "POST /api/v1/auth/login/verify {deviceId, signedChallenge}"
             -> auth_service                "Verify signature — issue device JWT"
             -> keycloak.device_token_ext   "Exchange device JWT for OIDC tokens" {
                 description '''
@@ -102,9 +102,9 @@ views {
                 Keycloak looks up the pre-pushed request by request_uri.
                 '''
             }
-            -> keycloak.device_token_ext   "Validate login_token assertion from PAR request" {
+            -> keycloak.sso_proxy_idp      "Validate login_token assertion from PAR request" {
                 description '''
-                LoginTokenAuthenticator validates signature, iss, aud, exp
+                JWT Authorization Grant IdP validates signature, iss, aud, exp
                 of the login_token and authenticates the user, creating
                 a Keycloak SSO session (KEYCLOAK_SESSION cookie).
                 '''
@@ -140,7 +140,7 @@ views {
             -> target_app                  "Display Access / ID / Refresh tokens with decoded claims"
             -> user                        "Authenticated in browser — tokens visible"
 
-        include user, mobile_app.transfer, auth_service, keycloak, keycloak.device_token_ext,
+        include user, mobile_app.transfer, auth_service, keycloak, keycloak.sso_proxy_idp,
                 target_app
     }
 }
