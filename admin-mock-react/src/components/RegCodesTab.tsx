@@ -54,10 +54,12 @@ function CreateForm({ onSubmit, onCancel }: CreateFormProps) {
       </div>
       <div className="create-form-grid">
         <div className="field" style={{ marginBottom: 0 }}>
-          <label>
+          <label htmlFor="create-userId">
             User ID <span style={{ color: 'var(--error)' }}>*</span>
           </label>
           <input
+            id="create-userId"
+            name="userId"
             type="text"
             value={userId}
             onChange={e => setUserId(e.target.value)}
@@ -65,10 +67,12 @@ function CreateForm({ onSubmit, onCancel }: CreateFormProps) {
           />
         </div>
         <div className="field" style={{ marginBottom: 0 }}>
-          <label>
+          <label htmlFor="create-name">
             Name <span style={{ color: 'var(--error)' }}>*</span>
           </label>
           <input
+            id="create-name"
+            name="name"
             type="text"
             value={name}
             onChange={e => setName(e.target.value)}
@@ -76,10 +80,12 @@ function CreateForm({ onSubmit, onCancel }: CreateFormProps) {
           />
         </div>
         <div className="field" style={{ marginBottom: 0 }}>
-          <label>
+          <label htmlFor="create-activationCode">
             Activation Code <span style={{ color: 'var(--error)' }}>*</span>
           </label>
           <input
+            id="create-activationCode"
+            name="activationCode"
             type="text"
             value={activationCode}
             onChange={e => setActivationCode(e.target.value)}

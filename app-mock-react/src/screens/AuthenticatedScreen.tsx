@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { parseJwt } from '../services/crypto';
 import { refreshTokens, initiateTransfer } from '../services/api';
 import type { OidcTokens, LogEntry } from '../types';
@@ -19,6 +19,13 @@ export default function AuthenticatedScreen({ tokens, onTokensRefreshed, onLogou
   const [transferUrl, setTransferUrl]     = useState('');
   const [transferBusy, setTransferBusy]   = useState(false);
   const [transferred, setTransferred]     = useState(false);
+
+  // Tick every second so secsLeft / expired stay accurate in real time.
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => tick(n => n + 1), 1000);
+    return () => clearInterval(id);
+  }, []);
 
   const accessParsed = parseJwt(tokens.access_token);
   const payload      = accessParsed?.payload ?? {};

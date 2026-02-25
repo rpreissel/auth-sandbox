@@ -1,11 +1,13 @@
 package dev.authsandbox.authservice.controller;
 
 import dev.authsandbox.authservice.dto.KeycloakTokenResponse;
+import dev.authsandbox.authservice.dto.RefreshTokenRequest;
 import dev.authsandbox.authservice.dto.StartLoginRequest;
 import dev.authsandbox.authservice.dto.StartLoginResponse;
 import dev.authsandbox.authservice.dto.VerifyChallengeRequest;
 import dev.authsandbox.authservice.service.AuthService;
 import dev.authsandbox.authservice.service.JwtService;
+import dev.authsandbox.authservice.service.KeycloakAuthClient;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -20,6 +22,7 @@ public class AuthController {
 
     private final AuthService authService;
     private final JwtService jwtService;
+    private final KeycloakAuthClient keycloakAuthClient;
 
     /**
      * Step 1 of the auth flow: mobile app starts login, receives a challenge.
@@ -47,5 +50,15 @@ public class AuthController {
     @GetMapping("/.well-known/jwks.json")
     public ResponseEntity<Map<String, Object>> jwks() {
         return ResponseEntity.ok(jwtService.toJwkSet());
+    }
+
+    /**
+     * Token refresh: exchanges a Keycloak refresh token for a new set of OIDC tokens.
+     * The mobile app calls this endpoint to silently renew expiring access tokens.
+     */
+    @PostMapping("/token/refresh")
+    public ResponseEntity<KeycloakTokenResponse> refreshToken(
+            @Valid @RequestBody RefreshTokenRequest request) {
+        return ResponseEntity.ok(keycloakAuthClient.refreshToken(request.refreshToken()));
     }
 }

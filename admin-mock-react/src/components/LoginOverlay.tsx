@@ -39,8 +39,10 @@ export function LoginOverlay({ onLogin }: Props) {
         <p>Keycloak admin credentials required to access the Device Auth Admin panel.</p>
         {error && <div className="login-error show">{error}</div>}
         <div className="field">
-          <label>Username</label>
+          <label htmlFor="login-username">Username</label>
           <input
+            id="login-username"
+            name="username"
             type="text"
             value={username}
             onChange={e => setUsername(e.target.value)}
@@ -48,8 +50,10 @@ export function LoginOverlay({ onLogin }: Props) {
           />
         </div>
         <div className="field">
-          <label>Password</label>
+          <label htmlFor="login-password">Password</label>
           <input
+            id="login-password"
+            name="password"
             type="password"
             value={password}
             onChange={e => setPassword(e.target.value)}

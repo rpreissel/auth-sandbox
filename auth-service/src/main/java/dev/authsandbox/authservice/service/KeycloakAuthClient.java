@@ -107,6 +107,38 @@ public class KeycloakAuthClient {
         return tokens;
     }
 
+    /**
+     * Exchanges a Keycloak refresh token for a new set of OIDC tokens.
+     *
+     * @param refreshToken the Keycloak refresh token issued in a previous auth flow
+     * @return new OIDC token response from Keycloak
+     */
+    public KeycloakTokenResponse refreshToken(String refreshToken) {
+        MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
+        body.add("grant_type", "refresh_token");
+        body.add("client_id", keycloakProperties.clientId());
+        body.add("client_secret", keycloakProperties.clientSecret());
+        body.add("refresh_token", refreshToken);
+
+        KeycloakTokenResponse tokens = restClient.post()
+                .uri(keycloakProperties.tokenEndpoint())
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .body(body)
+                .retrieve()
+                .onStatus(status -> !status.is2xxSuccessful(), (request, resp) -> {
+                    throw new KeycloakUpstreamException(
+                            "Token refresh failed with status: " + resp.getStatusCode());
+                })
+                .body(KeycloakTokenResponse.class);
+
+        if (tokens == null) {
+            throw new KeycloakUpstreamException("Empty token response from Keycloak during refresh");
+        }
+
+        log.debug("Successfully refreshed OIDC tokens");
+        return tokens;
+    }
+
     // -----------------------------------------------------------------------
     // Private helpers
     // -----------------------------------------------------------------------
