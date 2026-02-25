@@ -19,6 +19,7 @@ certs/
 # Build artefacts
 *.class
 *.jar
+!**/gradle/wrapper/gradle-wrapper.jar
 target/
 build/
 bin/
