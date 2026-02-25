@@ -31,13 +31,13 @@ variable "device_login_client_secret" {
 variable "device_login_redirect_uri" {
   description = "Valid redirect URI for device-login-client (KEYCLOAK_REDIRECT_URI)."
   type        = string
-  default     = "https://device-login.localhost:8443/api/v1/auth/callback"
+  default     = "https://auth-service.localhost:8443/api/v1/auth/callback"
 }
 
 variable "transfer_callback_uri" {
   description = "Redirect URI for the SSO transfer callback (KEYCLOAK_CALLBACK_URI)."
   type        = string
-  default     = "https://device-login.localhost:8443/api/v1/transfer/callback"
+  default     = "https://auth-service.localhost:8443/api/v1/transfer/callback"
 }
 
 variable "target_app_redirect_uri" {
@@ -61,7 +61,7 @@ variable "device_login_idp_alias" {
 variable "jwt_issuer" {
   description = "Expected issuer (iss) in JWT tokens issued by auth-service (JWT_ISSUER)."
   type        = string
-  default     = "https://device-login.localhost:8443"
+  default     = "https://auth-service.localhost:8443"
 }
 
 variable "device_login_jwks_url" {

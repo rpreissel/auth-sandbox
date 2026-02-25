@@ -327,7 +327,7 @@ podman compose logs -f keycloak
 ### Access
 
 - Keycloak Admin UI: **https://keycloak.localhost:8443** (admin / admin-password)
-- auth-service API: **https://device-login.localhost:8443** (device/auth flow) / **https://sso-proxy.localhost:8443** (SSO transfer)
+- auth-service API: **https://auth-service.localhost:8443** (device/auth flow) / **https://sso-proxy.localhost:8443** (SSO transfer)
 - App mock (mobile flow): **https://app-mock.localhost:8443**
 - Admin panel: **https://admin.localhost:8443**
 - Target app (SSO target): **https://target-app.localhost:8443**
@@ -336,7 +336,7 @@ podman compose logs -f keycloak
 - Add to `/etc/hosts` if not already resolved:
   ```
   127.0.0.1  keycloak.localhost
-  127.0.0.1  device-login.localhost
+  127.0.0.1  auth-service.localhost
   127.0.0.1  sso-proxy.localhost
   127.0.0.1  app-mock.localhost
   127.0.0.1  admin.localhost

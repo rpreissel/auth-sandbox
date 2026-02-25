@@ -34,7 +34,7 @@ Nach der Validierung des Device-JWT durch den Identity Provider leitet Keycloak 
 `device-login` ist ein serverseitiger Dienst, der sein Client-Secret sicher verwahren kann. `CONFIDENTIAL` erzwingt, dass der Token-Endpunkt nur mit Client-Secret antwortet — ein reines Frontend oder eine native App ohne sicheres Secret würde `PUBLIC` verwenden. Hier ist das Secret nötig, damit Keycloak sicher weiß, dass tatsächlich `device-login` den Code einlöst und kein fremder Aufrufer.
 
 **Warum genau diese Redirect-URI?**
-Keycloak sendet den Authorization Code ausschließlich an vorab registrierte URIs. Ist die URI nicht eingetragen, verweigert Keycloak die Weiterleitung — das verhindert, dass ein Angreifer den Code an eine eigene URI umleiten kann. Die eingetragene URI `https://device-login.localhost:8443/api/v1/auth/callback` ist der Callback-Endpunkt von `device-login`, der den Code entgegennimmt.
+Keycloak sendet den Authorization Code ausschließlich an vorab registrierte URIs. Ist die URI nicht eingetragen, verweigert Keycloak die Weiterleitung — das verhindert, dass ein Angreifer den Code an eine eigene URI umleiten kann. Die eingetragene URI `https://auth-service.localhost:8443/api/v1/auth/callback` ist der Callback-Endpunkt von `device-login`, der den Code entgegennimmt.
 
 ---
 

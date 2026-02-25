@@ -44,7 +44,7 @@ app:
   jwt:
     private-key-path: ${JWT_PRIVATE_KEY_PATH:/etc/auth-service/keys/private.pem}
     public-key-path: ${JWT_PUBLIC_KEY_PATH:/etc/auth-service/keys/public.pem}
-    issuer: ${JWT_ISSUER:https://device-login.localhost:8443}
+    issuer: ${JWT_ISSUER:https://auth-service.localhost:8443}
     transfer-token-ttl-seconds: ${TRANSFER_TOKEN_TTL_SECONDS:60}
 
   challenge:
@@ -59,8 +59,8 @@ app:
     introspect-endpoint: ${KEYCLOAK_INTROSPECT_ENDPOINT:http://keycloak:8080/realms/auth-sandbox/protocol/openid-connect/token/introspect}
     client-id: ${KEYCLOAK_CLIENT_ID:device-login-client}
     client-secret: ${KEYCLOAK_CLIENT_SECRET}
-    redirect-uri: ${KEYCLOAK_REDIRECT_URI:https://device-login.localhost:8443/api/v1/auth/callback}
-    callback-uri: ${KEYCLOAK_CALLBACK_URI:https://device-login.localhost:8443/api/v1/transfer/callback}
+    redirect-uri: ${KEYCLOAK_REDIRECT_URI:https://auth-service.localhost:8443/api/v1/auth/callback}
+    callback-uri: ${KEYCLOAK_CALLBACK_URI:https://auth-service.localhost:8443/api/v1/transfer/callback}
     scope: ${KEYCLOAK_SCOPE:openid profile}
     assertion-expiration-seconds: ${KEYCLOAK_ASSERTION_EXPIRATION_SECONDS:60}
     admin:

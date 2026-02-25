@@ -2,7 +2,7 @@
 # End-to-end test for the auth-service device authorization flow (with registration codes)
 set -euo pipefail
 
-BASE="https://device-login.localhost:8443"
+BASE="https://auth-service.localhost:8443"
 ADMIN_CREDS="admin:admin-password"
 
 # Use the service key pair (already provisioned in the container)

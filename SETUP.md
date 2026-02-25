@@ -28,7 +28,7 @@ Add the following entries (one-time, requires sudo):
 
 ```bash
 echo "127.0.0.1  keycloak.localhost" | sudo tee -a /etc/hosts
-echo "127.0.0.1  device-login.localhost" | sudo tee -a /etc/hosts
+echo "127.0.0.1  auth-service.localhost" | sudo tee -a /etc/hosts
 echo "127.0.0.1  sso-proxy.localhost" | sudo tee -a /etc/hosts
 echo "127.0.0.1  app-mock.localhost" | sudo tee -a /etc/hosts
 echo "127.0.0.1  admin.localhost" | sudo tee -a /etc/hosts
@@ -109,10 +109,10 @@ Create and configure the following (in order):
 
 1. **Realm:** `auth-sandbox`
 2. **Client** `device-login-admin` — Client Credentials grant; use `KEYCLOAK_ADMIN_CLIENT_SECRET` as the secret; assign the `realm-management` roles `view-users`, `manage-users`, `manage-identity-providers`
-3. **Client** `device-login-client` — Standard Flow; use `KEYCLOAK_CLIENT_SECRET` as the secret; add `https://device-login.localhost:8443/api/v1/auth/callback` as a valid redirect URI; also add `https://sso-proxy.localhost:8443/api/v1/transfer/callback` as a valid redirect URI
+3. **Client** `device-login-client` — Standard Flow; use `KEYCLOAK_CLIENT_SECRET` as the secret; add `https://auth-service.localhost:8443/api/v1/auth/callback` as a valid redirect URI; also add `https://sso-proxy.localhost:8443/api/v1/transfer/callback` as a valid redirect URI
 4. **JWT Authorization Grant IdP** `device-login-idp` (alias: value of `KEYCLOAK_IDP_ALIAS`):
    - Provider type: *JWT Authorization Grant (identity provider)*
-   - JWKS URL: `https://device-login.localhost:8443/api/v1/auth/.well-known/jwks.json`
+   - JWKS URL: `https://auth-service.localhost:8443/api/v1/auth/.well-known/jwks.json`
    - Issuer: value of `JWT_ISSUER` from `.env`
 5. **JWT Authorization Grant IdP** `sso-proxy-idp` (alias: value of `KEYCLOAK_SSO_PROXY_IDP_ALIAS`):
    - Provider type: *JWT Authorization Grant (identity provider)*
@@ -128,7 +128,7 @@ Create and configure the following (in order):
 |---|---|
 | https://home.localhost:8443 | Developer start page (all links at a glance) |
 | https://keycloak.localhost:8443 | Keycloak Admin UI |
-| https://device-login.localhost:8443/actuator/health | auth-service health check |
+| https://auth-service.localhost:8443/actuator/health | auth-service health check |
 | https://admin.localhost:8443 | Admin mock panel |
 | https://app-mock.localhost:8443 | Mobile app mock |
 | https://target-app.localhost:8443 | SSO transfer target app |

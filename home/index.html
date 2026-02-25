@@ -308,11 +308,11 @@
         <span class="card-arrow">↗</span>
       </a>
 
-      <a class="link-card" href="https://device-login.localhost:8443/actuator/health" target="_blank" rel="noopener">
+      <a class="link-card" href="https://auth-service.localhost:8443/actuator/health" target="_blank" rel="noopener">
         <div class="card-icon icon-green">⚙️</div>
         <div class="card-body">
           <div class="card-title">auth-service</div>
-          <div class="card-url">device-login.localhost:8443</div>
+          <div class="card-url">auth-service.localhost:8443</div>
           <div class="card-desc">Merged backend: device authorization grant and SSO transfer flows.</div>
         </div>
         <span class="card-arrow">↗</span>
@@ -356,7 +356,7 @@
     <div class="section-title">auth-service API</div>
     <div class="link-grid">
 
-      <a class="link-card" href="https://device-login.localhost:8443/actuator/health" target="_blank" rel="noopener">
+      <a class="link-card" href="https://auth-service.localhost:8443/actuator/health" target="_blank" rel="noopener">
         <div class="card-icon icon-green">❤️</div>
         <div class="card-body">
           <div class="card-title">Health Check</div>
@@ -366,7 +366,7 @@
         <span class="card-arrow">↗</span>
       </a>
 
-      <a class="link-card" href="https://device-login.localhost:8443/api/v1/auth/.well-known/jwks.json" target="_blank" rel="noopener">
+      <a class="link-card" href="https://auth-service.localhost:8443/api/v1/auth/.well-known/jwks.json" target="_blank" rel="noopener">
         <div class="card-icon icon-blue">🔑</div>
         <div class="card-body">
           <div class="card-title">Device JWKS Endpoint</div>
@@ -376,7 +376,7 @@
         <span class="card-arrow">↗</span>
       </a>
 
-      <a class="link-card" href="https://device-login.localhost:8443/api/v1/transfer/.well-known/jwks.json" target="_blank" rel="noopener">
+      <a class="link-card" href="https://auth-service.localhost:8443/api/v1/transfer/.well-known/jwks.json" target="_blank" rel="noopener">
         <div class="card-icon icon-blue">🔑</div>
         <div class="card-body">
           <div class="card-title">Transfer JWKS Endpoint</div>
@@ -386,7 +386,7 @@
         <span class="card-arrow">↗</span>
       </a>
 
-      <a class="link-card" href="https://device-login.localhost:8443/api/v1/admin/registration-codes" target="_blank" rel="noopener">
+      <a class="link-card" href="https://auth-service.localhost:8443/api/v1/admin/registration-codes" target="_blank" rel="noopener">
         <div class="card-icon icon-orange">📋</div>
         <div class="card-body">
           <div class="card-title">Registration Codes API</div>
@@ -396,7 +396,7 @@
         <span class="card-arrow">↗</span>
       </a>
 
-      <a class="link-card" href="https://device-login.localhost:8443/api/v1/admin/devices" target="_blank" rel="noopener">
+      <a class="link-card" href="https://auth-service.localhost:8443/api/v1/admin/devices" target="_blank" rel="noopener">
         <div class="card-icon icon-purple">📟</div>
         <div class="card-body">
           <div class="card-title">Devices API</div>
@@ -510,7 +510,7 @@
   <footer>
     auth-sandbox · local dev only ·
     <a href="https://keycloak.localhost:8443" target="_blank" rel="noopener">Keycloak</a> ·
-    <a href="https://device-login.localhost:8443/actuator/health" target="_blank" rel="noopener">auth-service</a> ·
+    <a href="https://auth-service.localhost:8443/actuator/health" target="_blank" rel="noopener">auth-service</a> ·
     <a href="https://target-app.localhost:8443" target="_blank" rel="noopener">Target App</a> ·
     <a href="https://admin.localhost:8443" target="_blank" rel="noopener">Admin</a> ·
     <a href="https://app-mock.localhost:8443" target="_blank" rel="noopener">App Mock</a>
@@ -528,7 +528,7 @@ const SERVICES = [
   },
   {
     id: 'auth-service',
-    url: 'https://device-login.localhost:8443/actuator/health',
+    url: 'https://auth-service.localhost:8443/actuator/health',
     label: 'auth-service',
   },
 ];

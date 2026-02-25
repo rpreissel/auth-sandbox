@@ -15,8 +15,8 @@ keycloak.localhost:80 {
     redir https://keycloak.localhost:8443{uri} permanent
 }
 
-# device-login.localhost reverse proxy → auth-service
-device-login.localhost:443 {
+# auth-service.localhost reverse proxy → auth-service
+auth-service.localhost:443 {
     tls internal
 
     reverse_proxy auth-service:8083 {
@@ -25,8 +25,8 @@ device-login.localhost:443 {
     }
 }
 
-device-login.localhost:80 {
-    redir https://device-login.localhost:8443{uri} permanent
+auth-service.localhost:80 {
+    redir https://auth-service.localhost:8443{uri} permanent
 }
 
 # app-mock.localhost — mobile app mock UI
