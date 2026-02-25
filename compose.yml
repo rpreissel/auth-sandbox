@@ -83,44 +83,42 @@ services:
         condition: service_healthy
 
   app-mock:
-    image: caddy:2-alpine
+    image: nginx:alpine
     restart: unless-stopped
-    command: caddy file-server --root /srv --listen :80
     volumes:
+      - ./nginx/fileserver.conf:/etc/nginx/conf.d/default.conf:ro
       - ./app-mock-react/dist:/srv:ro
 
   admin-mock:
-    image: caddy:2-alpine
+    image: nginx:alpine
     restart: unless-stopped
-    command: caddy file-server --root /srv --listen :80
     volumes:
+      - ./nginx/fileserver.conf:/etc/nginx/conf.d/default.conf:ro
       - ./admin-mock-react/dist:/srv:ro
 
   home:
-    image: caddy:2-alpine
+    image: nginx:alpine
     restart: unless-stopped
-    command: caddy file-server --root /srv --listen :80
     volumes:
+      - ./nginx/fileserver.conf:/etc/nginx/conf.d/default.conf:ro
       - ./home:/srv:ro
 
-
   target-app:
-    image: caddy:2-alpine
+    image: nginx:alpine
     restart: unless-stopped
     volumes:
-      - ./target-app-react/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./target-app-react/nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - ./target-app-react/dist:/srv:ro
 
   caddy:
-    image: caddy:2-alpine
+    image: nginx:alpine
     restart: unless-stopped
     ports:
       - "8080:80"
       - "8443:443"
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy-data:/data
-      - caddy-config:/config
+      - ./nginx/proxy.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./certs:/etc/nginx/certs:ro
     depends_on:
       - keycloak
       - auth-service
@@ -131,5 +129,3 @@ services:
 
 volumes:
   keycloak-postgres-data:
-  caddy-data:
-  caddy-config:
