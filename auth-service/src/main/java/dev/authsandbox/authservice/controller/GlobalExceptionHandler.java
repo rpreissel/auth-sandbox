@@ -1,5 +1,6 @@
 package dev.authsandbox.authservice.controller;
 
+import dev.authsandbox.authservice.service.InvalidRefreshTokenException;
 import dev.authsandbox.authservice.service.KeycloakUpstreamException;
 import io.jsonwebtoken.JwtException;
 import lombok.extern.slf4j.Slf4j;
@@ -21,6 +22,15 @@ public class GlobalExceptionHandler {
         ProblemDetail pd = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
         pd.setTitle("Invalid token");
         pd.setDetail(ex.getMessage());
+        return pd;
+    }
+
+    @ExceptionHandler(InvalidRefreshTokenException.class)
+    public ProblemDetail handleInvalidRefreshToken(InvalidRefreshTokenException ex) {
+        log.warn("Refresh token rejected: {}", ex.getMessage());
+        ProblemDetail pd = ProblemDetail.forStatus(HttpStatus.UNAUTHORIZED);
+        pd.setTitle("Session expired");
+        pd.setDetail("The session has been terminated. Please log in again.");
         return pd;
     }
 

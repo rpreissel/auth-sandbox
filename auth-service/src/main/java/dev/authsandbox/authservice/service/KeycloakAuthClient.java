@@ -125,6 +125,10 @@ public class KeycloakAuthClient {
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .body(body)
                 .retrieve()
+                .onStatus(status -> status.is4xxClientError(), (request, resp) -> {
+                    throw new InvalidRefreshTokenException(
+                            "Refresh token rejected by Keycloak with status: " + resp.getStatusCode());
+                })
                 .onStatus(status -> !status.is2xxSuccessful(), (request, resp) -> {
                     throw new KeycloakUpstreamException(
                             "Token refresh failed with status: " + resp.getStatusCode());
