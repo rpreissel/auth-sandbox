@@ -49,3 +49,133 @@ resource "keycloak_authentication_execution" "login_token_authenticator" {
   requirement       = "REQUIRED"
 }
 
+# ---------------------------------------------------------------------------
+# Authentication Flow: Step-Up Browser Flow
+# ---------------------------------------------------------------------------
+# Standard browser flow extended with Level-of-Authentication conditions:
+#   Level 1 — username + password  (ACR "1")
+#   Level 2 — additionally OTP     (ACR "2")
+# The realm's acr.loa.map attribute maps ACR strings to LoA integers.
+# ---------------------------------------------------------------------------
+
+resource "keycloak_authentication_flow" "step_up_browser_flow" {
+  realm_id    = keycloak_realm.auth_sandbox.id
+  alias       = "step-up-browser-flow"
+  description = "Browser flow with step-up authentication (LoA 1 = password, LoA 2 = OTP)"
+  provider_id = "basic-flow"
+}
+
+# ── Cookie sub-flow: SSO re-use ──────────────────────────────────────────
+# auth-cookie cannot be placed as ALTERNATIVE at the same level as CONDITIONAL
+# sub-flows: Keycloak's DefaultAuthenticationFlow.fillListsOfExecutions() treats
+# CONDITIONAL the same as REQUIRED when detecting the mixed-mode warning and
+# clears the alternative list entirely (auth-cookie would be ignored).
+# Solution: wrap auth-cookie in its own CONDITIONAL sub-flow with a LoA=0
+# condition so it runs before the level1/level2 sub-flows.
+resource "keycloak_authentication_subflow" "cookie_subflow" {
+  realm_id          = keycloak_realm.auth_sandbox.id
+  parent_flow_alias = keycloak_authentication_flow.step_up_browser_flow.alias
+  alias             = "cookie-subflow"
+  provider_id       = "basic-flow"
+  description       = "SSO cookie check (conditional)"
+  requirement       = "CONDITIONAL"
+}
+
+resource "keycloak_authentication_execution" "cookie_loa_condition" {
+  realm_id          = keycloak_realm.auth_sandbox.id
+  parent_flow_alias = "cookie-subflow"
+  authenticator     = "conditional-level-of-authentication"
+  requirement       = "REQUIRED"
+  depends_on        = [keycloak_authentication_subflow.cookie_subflow]
+}
+
+resource "keycloak_authentication_execution_config" "cookie_loa_condition_config" {
+  realm_id     = keycloak_realm.auth_sandbox.id
+  execution_id = keycloak_authentication_execution.cookie_loa_condition.id
+  alias        = "cookie-loa-condition-config"
+  config = {
+    "loa-condition-level" = "0"
+    "loa-max-age"         = "36000"
+  }
+}
+
+resource "keycloak_authentication_execution" "step_up_cookie" {
+  realm_id          = keycloak_realm.auth_sandbox.id
+  parent_flow_alias = "cookie-subflow"
+  authenticator     = "auth-cookie"
+  requirement       = "REQUIRED"
+  depends_on        = [keycloak_authentication_execution_config.cookie_loa_condition_config]
+}
+
+# ── Level 1 sub-flow: username + password ────────────────────────────────
+resource "keycloak_authentication_subflow" "level1_subflow" {
+  realm_id          = keycloak_realm.auth_sandbox.id
+  parent_flow_alias = keycloak_authentication_flow.step_up_browser_flow.alias
+  alias             = "level1-subflow"
+  provider_id       = "basic-flow"
+  requirement       = "CONDITIONAL"
+  depends_on        = [keycloak_authentication_execution.step_up_cookie]
+}
+
+resource "keycloak_authentication_execution" "level1_condition" {
+  realm_id          = keycloak_realm.auth_sandbox.id
+  parent_flow_alias = "level1-subflow"
+  authenticator     = "conditional-level-of-authentication"
+  requirement       = "REQUIRED"
+  depends_on        = [keycloak_authentication_subflow.level1_subflow]
+}
+
+resource "keycloak_authentication_execution_config" "level1_condition_config" {
+  realm_id     = keycloak_realm.auth_sandbox.id
+  execution_id = keycloak_authentication_execution.level1_condition.id
+  alias        = "level1-condition-config"
+  config = {
+    "loa-condition-level" = "1"
+    "loa-max-age"         = "36000"
+  }
+}
+
+resource "keycloak_authentication_execution" "level1_username_password" {
+  realm_id          = keycloak_realm.auth_sandbox.id
+  parent_flow_alias = "level1-subflow"
+  authenticator     = "auth-username-password-form"
+  requirement       = "REQUIRED"
+  depends_on        = [keycloak_authentication_execution_config.level1_condition_config]
+}
+
+# ── Level 2 sub-flow: OTP ────────────────────────────────────────────────
+resource "keycloak_authentication_subflow" "level2_subflow" {
+  realm_id          = keycloak_realm.auth_sandbox.id
+  parent_flow_alias = keycloak_authentication_flow.step_up_browser_flow.alias
+  alias             = "level2-subflow"
+  provider_id       = "basic-flow"
+  requirement       = "CONDITIONAL"
+  depends_on        = [keycloak_authentication_execution.level1_username_password]
+}
+
+resource "keycloak_authentication_execution" "level2_condition" {
+  realm_id          = keycloak_realm.auth_sandbox.id
+  parent_flow_alias = "level2-subflow"
+  authenticator     = "conditional-level-of-authentication"
+  requirement       = "REQUIRED"
+  depends_on        = [keycloak_authentication_subflow.level2_subflow]
+}
+
+resource "keycloak_authentication_execution_config" "level2_condition_config" {
+  realm_id     = keycloak_realm.auth_sandbox.id
+  execution_id = keycloak_authentication_execution.level2_condition.id
+  alias        = "level2-condition-config"
+  config = {
+    "loa-condition-level" = "2"
+    "loa-max-age"         = "36000"
+  }
+}
+
+resource "keycloak_authentication_execution" "level2_otp" {
+  realm_id          = keycloak_realm.auth_sandbox.id
+  parent_flow_alias = "level2-subflow"
+  authenticator     = "auth-otp-form"
+  requirement       = "REQUIRED"
+  depends_on        = [keycloak_authentication_execution_config.level2_condition_config]
+}
+

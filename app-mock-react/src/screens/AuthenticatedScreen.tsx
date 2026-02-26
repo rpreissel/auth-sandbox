@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { parseJwt } from '../services/crypto';
-import { refreshTokens, initiateTransfer } from '../services/api';
+import { refreshTokens, initiateTransfer, fetchUserinfo } from '../services/api';
 import type { OidcTokens, LogEntry } from '../types';
 
 interface Props {
@@ -19,6 +19,8 @@ export default function AuthenticatedScreen({ tokens, onTokensRefreshed, onLogou
   const [transferUrl, setTransferUrl]     = useState('');
   const [transferBusy, setTransferBusy]   = useState(false);
   const [transferred, setTransferred]     = useState(false);
+  const [userinfoBusy, setUserinfoBusy]   = useState(false);
+  const [userinfoData, setUserinfoData]   = useState<Record<string, unknown> | null>(null);
 
   // Tick every second so secsLeft / expired stay accurate in real time.
   const [, tick] = useState(0);
@@ -49,6 +51,23 @@ export default function AuthenticatedScreen({ tokens, onTokensRefreshed, onLogou
       log(`Refresh fehlgeschlagen: ${msg}`, 'err');
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function handleUserinfo() {
+    setError('');
+    setUserinfoBusy(true);
+    log('→ Userinfo-Endpoint abrufen…', 'info');
+    try {
+      const data = await fetchUserinfo(tokens.access_token);
+      setUserinfoData(data);
+      log('Userinfo erfolgreich abgerufen.', 'ok');
+    } catch (err) {
+      const msg = (err as Error).message;
+      setError(msg);
+      log(`Userinfo fehlgeschlagen: ${msg}`, 'err');
+    } finally {
+      setUserinfoBusy(false);
     }
   }
 
@@ -107,6 +126,32 @@ export default function AuthenticatedScreen({ tokens, onTokensRefreshed, onLogou
         <button className="btn-danger" onClick={onLogout}>
           Abmelden
         </button>
+      </div>
+
+      {/* Userinfo */}
+      <div className="rounded-xl border border-[--color-border] bg-[--color-surface] p-4 flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-semibold">Userinfo-Endpoint</span>
+          <button
+            className="btn-secondary text-xs px-3 py-1.5"
+            onClick={handleUserinfo}
+            disabled={userinfoBusy}
+          >
+            {userinfoBusy ? <><Spinner /> Wird abgerufen…</> : '👤 Userinfo abrufen'}
+          </button>
+        </div>
+        {userinfoData && (
+          <div className="flex flex-col gap-1">
+            {Object.entries(userinfoData).map(([k, v]) => (
+              <div key={k} className="flex gap-2 text-xs py-1 border-b border-[--color-border]/40 last:border-0">
+                <span className="text-[--color-accent] font-mono shrink-0 w-32 truncate">{k}</span>
+                <span className="font-mono break-all text-[--color-text]">
+                  {typeof v === 'object' ? JSON.stringify(v) : String(v)}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Browser transfer */}

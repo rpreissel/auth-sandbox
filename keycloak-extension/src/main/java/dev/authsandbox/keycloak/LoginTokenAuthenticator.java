@@ -4,6 +4,7 @@ import org.jboss.logging.Logger;
 import org.keycloak.authentication.AuthenticationFlowContext;
 import org.keycloak.authentication.AuthenticationFlowError;
 import org.keycloak.authentication.Authenticator;
+import org.keycloak.authentication.authenticators.util.AcrStore;
 import org.keycloak.broker.provider.BrokeredIdentityContext;
 import org.keycloak.broker.provider.JWTAuthorizationGrantProvider;
 import org.keycloak.cache.AlternativeLookupProvider;
@@ -158,6 +159,26 @@ public class LoginTokenAuthenticator implements Authenticator {
 
             LOG.infof("Login token authenticator: authenticated user '%s'", user.getUsername());
             context.setUser(user);
+
+            // AcrStore sets the Keycloak auth-session note "level-of-authentication".
+            // With step-up-authentication enabled, TokenManager reads this note via
+            // oidc-acr-mapper and maps it back to the ACR string using acr.loa.map.
+            // Default to LoA 2 (biometric/device) when no acr claim is present.
+            int loa = 2;
+            Object acrClaim = authorizationGrantContext.getJWT().getOtherClaims().get("acr");
+            if (acrClaim != null) {
+                try {
+                    loa = Integer.parseInt(acrClaim.toString());
+                } catch (NumberFormatException e) {
+                    LOG.warnf("Cannot parse acr claim '%s' as integer, defaulting to LoA 2", acrClaim);
+                }
+            }
+            new AcrStore(context.getSession(), context.getAuthenticationSession()).setLevelAuthenticated(loa);
+            // Also write to user session note so the userinfo endpoint can include the acr claim
+            // via oidc-usersessionmodel-note-mapper (AcrProtocolMapper does not implement UserInfoTokenMapper).
+            context.getAuthenticationSession().setUserSessionNote("level-of-authentication", String.valueOf(loa));
+            LOG.debugf("Set LoA=%d for user '%s' (acr claim: %s)", loa, user.getUsername(), acrClaim);
+
             context.success();
 
         } catch (Exception e) {

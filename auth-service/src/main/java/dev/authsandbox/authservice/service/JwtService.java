@@ -38,9 +38,12 @@ public class JwtService {
      * Issues a signed Keycloak assertion JWT for the given userId (kid = device-login-key).
      * Used by both the device-login and SSO transfer flows; Keycloak's device-login-idp
      * verifies these tokens.
+     *
+     * @param userId the subject / federated-identity userId
+     * @param acr    Authentication Context Class Reference level ("1" = password, "2" = biometric)
      */
-    public String issueKeycloakAssertionToken(String userId) {
-        log.debug("Issuing Keycloak assertion token for userId '{}'", userId);
+    public String issueKeycloakAssertionToken(String userId, String acr) {
+        log.debug("Issuing Keycloak assertion token for userId '{}' acr='{}'", userId, acr);
         Instant now = Instant.now();
         Instant expiry = now.plusSeconds(keycloakProperties.assertionExpirationSeconds());
 
@@ -51,6 +54,7 @@ public class JwtService {
                 .issuer(jwtProperties.issuer())
                 .audience().add(keycloakProperties.realmUrl()).and()
                 .claim("azp", keycloakProperties.clientId())
+                .claim("acr", acr)
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(expiry))
                 .signWith(jwtKeyPair.getPrivate(), Jwts.SIG.RS256)

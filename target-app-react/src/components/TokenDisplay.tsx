@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { fetchUserinfo } from '../services/oidc';
 import type { OidcTokens } from '../types';
 
 interface Props {
@@ -9,6 +10,9 @@ type TabKey = 'access' | 'id' | 'refresh';
 
 export default function TokenDisplay({ tokens }: Props) {
   const [activeTab, setActiveTab] = useState<TabKey>('access');
+  const [userinfoBusy, setUserinfoBusy] = useState(false);
+  const [userinfoData, setUserinfoData] = useState<Record<string, unknown> | null>(null);
+  const [userinfoError, setUserinfoError] = useState('');
 
   const payload = parseJwt(tokens.access_token)?.payload ?? {};
   const sub     = (payload['preferred_username'] as string | undefined)
@@ -17,6 +21,19 @@ export default function TokenDisplay({ tokens }: Props) {
   const exp     = payload['exp'] as number | undefined;
   const secsLeft = exp ? Math.max(0, Math.round((exp * 1000 - Date.now()) / 1000)) : undefined;
   const expired  = secsLeft === 0;
+
+  async function handleUserinfo() {
+    setUserinfoError('');
+    setUserinfoBusy(true);
+    try {
+      const data = await fetchUserinfo(tokens.access_token);
+      setUserinfoData(data);
+    } catch (err) {
+      setUserinfoError((err as Error).message);
+    } finally {
+      setUserinfoBusy(false);
+    }
+  }
 
   return (
     <div className="flex flex-col gap-5 w-full max-w-xl mx-auto">
@@ -68,6 +85,38 @@ export default function TokenDisplay({ tokens }: Props) {
             <JwtView token={activeTab === 'access' ? tokens.access_token : tokens.id_token} />
           )}
         </div>
+      </div>
+
+      {/* Userinfo */}
+      <div className="rounded-xl border border-[--color-border] bg-[--color-surface] p-4 flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-semibold">Userinfo Endpoint</span>
+          <button
+            className={[
+              'text-xs px-3 py-1.5 rounded-lg border font-semibold transition-colors',
+              'border-[--color-border] bg-[--color-surface2] text-[--color-text] hover:border-[--color-accent]/50',
+            ].join(' ')}
+            onClick={handleUserinfo}
+            disabled={userinfoBusy}
+          >
+            {userinfoBusy ? '⏳ Loading…' : '👤 Fetch userinfo'}
+          </button>
+        </div>
+        {userinfoError && (
+          <p className="text-xs text-red-400">{userinfoError}</p>
+        )}
+        {userinfoData && (
+          <div className="flex flex-col gap-1">
+            {Object.entries(userinfoData).map(([k, v]) => (
+              <div key={k} className="flex gap-2 text-xs py-1 border-b border-[--color-border]/40 last:border-0">
+                <span className="text-[--color-accent] font-mono shrink-0 w-32 truncate">{k}</span>
+                <span className="font-mono break-all text-[--color-text]">
+                  {typeof v === 'object' ? JSON.stringify(v) : String(v)}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

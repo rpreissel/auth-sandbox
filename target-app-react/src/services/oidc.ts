@@ -33,6 +33,21 @@ async function sha256Base64Url(plain: string): Promise<string> {
     .replace(/=+$/, '');
 }
 
+/**
+ * Calls the Keycloak userinfo endpoint via the /api/userinfo Nginx proxy.
+ */
+export async function fetchUserinfo(accessToken: string): Promise<Record<string, unknown>> {
+  const resp = await fetch('/api/userinfo', {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  const json = await resp.json().catch(() => ({})) as Record<string, unknown>;
+  if (!resp.ok) {
+    const msg = (json['error_description'] ?? json['error'] ?? resp.statusText) as string;
+    throw new Error(`Userinfo failed: ${msg}`);
+  }
+  return json;
+}
+
 export function generateCodeVerifier(): string {
   return randomBase64Url(32);
 }

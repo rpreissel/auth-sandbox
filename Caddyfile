@@ -31,8 +31,17 @@ auth-service.localhost:80 {
 
 # app-mock.localhost — mobile app mock UI
 # /api/* is proxied to auth-service so the browser stays same-origin (no CORS)
+# /api/userinfo is proxied directly to Keycloak's userinfo endpoint (no CORS)
 app-mock.localhost:443 {
     tls internal
+
+    handle /api/userinfo {
+        reverse_proxy keycloak:8080 {
+            rewrite /realms/auth-sandbox/protocol/openid-connect/userinfo
+            header_up X-Forwarded-Proto "https"
+            header_up X-Forwarded-Port  "8443"
+        }
+    }
 
     handle /api/* {
         reverse_proxy auth-service:8083 {

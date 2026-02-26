@@ -102,7 +102,7 @@ public class AuthService {
 
         // The JWT sub must match the federated identity userId registered in Keycloak
         // (createUserWithFederatedIdentity uses userId, not deviceId, as the external subject).
-        String assertionToken = jwtService.issueKeycloakAssertionToken(device.getUserId());
+        String assertionToken = jwtService.issueKeycloakAssertionToken(device.getUserId(), "2");
         log.debug("Issued Keycloak assertion token for device '{}' (userId '{}')",
                 device.getDeviceId(), device.getUserId());
 

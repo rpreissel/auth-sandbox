@@ -55,7 +55,7 @@ class JwtServiceTest {
 
     @Test
     void issueKeycloakAssertionToken_returnsSignedToken() {
-        String token = jwtService.issueKeycloakAssertionToken("user-123");
+        String token = jwtService.issueKeycloakAssertionToken("user-123", "2");
 
         assertThat(token).isNotBlank();
     }
@@ -78,7 +78,7 @@ class JwtServiceTest {
 
     @Test
     void issueKeycloakAssertionToken_returnsSignedToken_forTransferFlow() {
-        String token = jwtService.issueKeycloakAssertionToken("user-456");
+        String token = jwtService.issueKeycloakAssertionToken("user-456", "1");
 
         assertThat(token).isNotBlank();
     }

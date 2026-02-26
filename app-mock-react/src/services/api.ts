@@ -52,6 +52,18 @@ export function refreshTokens(refreshToken: string): Promise<OidcTokens> {
   return post('/api/v1/auth/token/refresh', { refreshToken });
 }
 
+export async function fetchUserinfo(accessToken: string): Promise<Record<string, unknown>> {
+  const resp = await fetch('/api/userinfo', {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  const json = await resp.json().catch(() => ({})) as Record<string, unknown>;
+  if (!resp.ok) {
+    const msg = (json['message'] ?? json['error'] ?? resp.statusText) as string;
+    throw new Error(`HTTP ${resp.status}: ${msg}`);
+  }
+  return json;
+}
+
 export interface InitiateTransferResponse {
   transferUrl: string;
   expiresInSeconds: number;

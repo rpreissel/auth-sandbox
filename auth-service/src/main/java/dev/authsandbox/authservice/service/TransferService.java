@@ -75,11 +75,18 @@ public class TransferService {
         }
         log.debug("Initiating transfer for userId '{}'", userId);
 
+        // Extract ACR level from the source token; default to "1" (password) if absent
+        String acr = (String) claims.get("acr");
+        if (acr == null || acr.isBlank()) {
+            acr = "1";
+        }
+        log.debug("Carrying over acr='{}' from source token", acr);
+
         // 2. Ensure the user has a sso-proxy-idp federated identity link
         keycloakAdminClient.ensureSsoProxyFederatedIdentityLink(userId);
 
-        // 3. Issue Keycloak assertion token
-        String loginToken = jwtService.issueKeycloakAssertionToken(userId);
+        // 3. Issue Keycloak assertion token (carry over ACR level)
+        String loginToken = jwtService.issueKeycloakAssertionToken(userId, acr);
 
         // 4. Issue state JWT (carries targetUrl + nonce)
         String stateJwt = jwtService.issueStateToken(request.targetUrl());
