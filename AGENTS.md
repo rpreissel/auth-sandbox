@@ -79,6 +79,10 @@ cd auth-service && ./gradlew test --tests "dev.authsandbox.authservice.service.J
 
 # keycloak-extension (build before starting the stack)
 cd keycloak-extension && ./gradlew jar
+
+# E2E tests (TypeScript + Vitest + Testcontainers — spins up the full stack)
+cd e2e && npm test                            # run all suites
+cd e2e && npm test -- --reporter=verbose      # verbose output
 ```
 
 No automated tests for React frontends. When added, update this file with: full suite command, single-test command, lint/format commands.
