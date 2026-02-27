@@ -33,3 +33,7 @@ bin/
 
 # Node / frontend
 node_modules/
+
+# Playwright test reports
+**/playwright-report/
+**/test-results/
