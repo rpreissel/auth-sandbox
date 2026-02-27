@@ -1,8 +1,19 @@
-# keycloak.localhost reverse proxy with automatic TLS (self-signed for localhost)
+{
+    # Caddy listens on 443 inside the container; the host maps 8443→443 and 8080→80
+    http_port  80
+    https_port 443
+}
+
+# HTTP → HTTPS redirect for all virtual hosts
+http:// {
+    redir https://{host}:8443{uri} permanent
+}
+
+# keycloak.localhost
 keycloak.localhost:443 {
     tls internal
 
-    # Increase buffer sizes for Keycloak's large OIDC responses
+    # Keycloak sends large OIDC response headers (cookies, PAR, etc.)
     reverse_proxy keycloak:8080 {
         header_up X-Forwarded-Proto "https"
         header_up X-Forwarded-Port  "8443"
@@ -10,12 +21,7 @@ keycloak.localhost:443 {
     }
 }
 
-# Redirect plain HTTP to HTTPS
-keycloak.localhost:80 {
-    redir https://keycloak.localhost:8443{uri} permanent
-}
-
-# auth-service.localhost reverse proxy → auth-service
+# auth-service.localhost
 auth-service.localhost:443 {
     tls internal
 
@@ -25,19 +31,16 @@ auth-service.localhost:443 {
     }
 }
 
-auth-service.localhost:80 {
-    redir https://auth-service.localhost:8443{uri} permanent
-}
-
 # app-mock.localhost — mobile app mock UI
-# /api/* is proxied to auth-service so the browser stays same-origin (no CORS)
-# /api/userinfo is proxied directly to Keycloak's userinfo endpoint (no CORS)
+# /api/userinfo → Keycloak userinfo (same-origin, no CORS)
+# /api/*        → auth-service (same-origin, no CORS)
+# /             → static SPA files
 app-mock.localhost:443 {
     tls internal
 
     handle /api/userinfo {
+        rewrite * /realms/auth-sandbox/protocol/openid-connect/userinfo
         reverse_proxy keycloak:8080 {
-            rewrite /realms/auth-sandbox/protocol/openid-connect/userinfo
             header_up X-Forwarded-Proto "https"
             header_up X-Forwarded-Port  "8443"
         }
@@ -51,16 +54,14 @@ app-mock.localhost:443 {
     }
 
     handle {
-        reverse_proxy app-mock:80
+        root * /srv/app-mock
+        file_server
     }
 }
 
-app-mock.localhost:80 {
-    redir https://app-mock.localhost:8443{uri} permanent
-}
-
-# admin.localhost — admin UI
-# /api/* is proxied to auth-service (admin endpoints require Basic Auth)
+# admin.localhost — admin panel
+# /api/* → auth-service (admin endpoints, Basic Auth forwarded)
+# /      → static files
 admin.localhost:443 {
     tls internal
 
@@ -72,25 +73,17 @@ admin.localhost:443 {
     }
 
     handle {
-        reverse_proxy admin-mock:80
+        root * /srv/admin-mock
+        file_server
     }
 }
 
-admin.localhost:80 {
-    redir https://admin.localhost:8443{uri} permanent
-}
-
-# home.localhost — developer start page with links to all services
+# home.localhost — developer start page
 home.localhost:443 {
     tls internal
 
-    handle {
-        reverse_proxy home:80
-    }
-}
-
-home.localhost:80 {
-    redir https://home.localhost:8443{uri} permanent
+    root * /srv/home
+    file_server
 }
 
 # sso-proxy.localhost — SSO browser transfer (served by auth-service)
@@ -103,29 +96,32 @@ sso-proxy.localhost:443 {
     }
 }
 
-sso-proxy.localhost:80 {
-    redir https://sso-proxy.localhost:8443{uri} permanent
-}
-
 # target-app.localhost — OIDC Auth Code + PKCE target SPA
-# /api/token is proxied to Keycloak to avoid CORS on the token endpoint
-# /callback is served by the SPA (handled client-side by React)
+# /api/userinfo → Keycloak userinfo (avoid CORS)
+# /api/token    → Keycloak token endpoint (avoid CORS)
+# /             → static SPA files (SPA fallback for client-side routing)
 target-app.localhost:443 {
     tls internal
 
-    handle /api/token {
+    handle /api/userinfo {
+        rewrite * /realms/auth-sandbox/protocol/openid-connect/userinfo
         reverse_proxy keycloak:8080 {
-            rewrite /realms/auth-sandbox/protocol/openid-connect/token
+            header_up X-Forwarded-Proto "https"
+            header_up X-Forwarded-Port  "8443"
+        }
+    }
+
+    handle /api/token {
+        rewrite * /realms/auth-sandbox/protocol/openid-connect/token
+        reverse_proxy keycloak:8080 {
             header_up X-Forwarded-Proto "https"
             header_up X-Forwarded-Port  "8443"
         }
     }
 
     handle {
-        reverse_proxy target-app:80
+        root * /srv/target-app
+        try_files {path} /index.html
+        file_server
     }
-}
-
-target-app.localhost:80 {
-    redir https://target-app.localhost:8443{uri} permanent
 }
