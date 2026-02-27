@@ -72,6 +72,14 @@ cd app-mock-react && npm run build
 cd admin-mock-react && npm run build
 cd target-app-react && npm run build
 
+# React app UI tests (Playwright)
+cd app-mock-react && npm test                 # run all tests
+cd app-mock-react && npm run test:ui          # run with UI
+cd admin-mock-react && npm test
+cd admin-mock-react && npm run test:ui
+cd target-app-react && npm test
+cd target-app-react && npm run test:ui
+
 # auth-service
 cd auth-service && ./gradlew bootJar          # build JAR
 cd auth-service && ./gradlew test             # run all tests
@@ -84,8 +92,6 @@ cd keycloak-extension && ./gradlew jar
 cd e2e && npm test                            # run all suites
 cd e2e && npm test -- --reporter=verbose      # verbose output
 ```
-
-No automated tests for React frontends. When added, update this file with: full suite command, single-test command, lint/format commands.
 
 LikeC4 diagrams: see `c4-spec/STYLE.md` for DSL conventions and CLI commands.
 
