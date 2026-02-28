@@ -186,22 +186,8 @@ resource "keycloak_generic_protocol_mapper" "device_login_acr_userinfo_mapper" {
 
 # ---------------------------------------------------------------------------
 # Protocol Mapper: ACR — target-app-client
-# Same mapper for the SPA client so that browser-based step-up ACR is visible.
+# Only acr-userinfo mapper is present in Keycloak (oidc-acr-mapper was removed)
 # ---------------------------------------------------------------------------
-resource "keycloak_generic_protocol_mapper" "target_app_acr_mapper" {
-  realm_id        = keycloak_realm.auth_sandbox.id
-  client_id       = keycloak_openid_client.target_app_client.id
-  name            = "acr"
-  protocol        = "openid-connect"
-  protocol_mapper = "oidc-acr-mapper"
-
-  config = {
-    "id.token.claim"            = "true"
-    "access.token.claim"        = "true"
-    "introspection.token.claim" = "true"
-    "userinfo.token.claim"      = "false"
-  }
-}
 
 resource "keycloak_generic_protocol_mapper" "target_app_acr_userinfo_mapper" {
   realm_id        = keycloak_realm.auth_sandbox.id
