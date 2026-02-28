@@ -6,5 +6,9 @@ terraform {
       source  = "mrparkers/keycloak"
       version = "~> 4.4"
     }
+    null = {
+      source  = "hashicorp/null"
+      version = "~> 3.0"
+    }
   }
 }

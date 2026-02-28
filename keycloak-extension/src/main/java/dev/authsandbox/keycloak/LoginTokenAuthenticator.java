@@ -1,6 +1,7 @@
 package dev.authsandbox.keycloak;
 
 import org.jboss.logging.Logger;
+import org.keycloak.authentication.AuthenticationFlowCallback;
 import org.keycloak.authentication.AuthenticationFlowContext;
 import org.keycloak.authentication.AuthenticationFlowError;
 import org.keycloak.authentication.Authenticator;
@@ -8,6 +9,8 @@ import org.keycloak.authentication.authenticators.util.AcrStore;
 import org.keycloak.broker.provider.BrokeredIdentityContext;
 import org.keycloak.broker.provider.JWTAuthorizationGrantProvider;
 import org.keycloak.cache.AlternativeLookupProvider;
+import org.keycloak.models.AuthenticationFlowModel;
+import org.keycloak.models.Constants;
 import org.keycloak.models.FederatedIdentityModel;
 import org.keycloak.models.IdentityProviderModel;
 import org.keycloak.models.KeycloakSession;
@@ -15,6 +18,7 @@ import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserModel;
 import org.keycloak.protocol.oidc.grants.JWTAuthorizationGrantValidator;
 import org.keycloak.services.resources.IdentityBrokerService;
+import org.keycloak.sessions.AuthenticationSessionModel;
 
 /**
  * Keycloak Authenticator SPI that validates the {@code login_token} extra parameter
@@ -31,17 +35,24 @@ import org.keycloak.services.resources.IdentityBrokerService;
  *
  * <p>After successful validation the user is looked up via {@link FederatedIdentityModel}
  * using the {@code sub} claim from the brokered identity context.
+ *
+ * <p>Implements AuthenticationFlowCallback to properly set LoA like ConditionalLoaAuthenticator.
  */
-public class LoginTokenAuthenticator implements Authenticator {
+public class LoginTokenAuthenticator implements AuthenticationFlowCallback {
 
     private static final Logger LOG = Logger.getLogger(LoginTokenAuthenticator.class);
 
     /** Auth session note key injected by Keycloak for extra authorization request params. */
     private static final String LOGIN_TOKEN_NOTE = "client_request_param_login_token";
+    
+    private final KeycloakSession session;
+
+    public LoginTokenAuthenticator(KeycloakSession session) {
+        this.session = session;
+    }
 
     @Override
     public void authenticate(AuthenticationFlowContext context) {
-        KeycloakSession session = context.getSession();
         String loginToken = context.getAuthenticationSession().getClientNote(LOGIN_TOKEN_NOTE);
 
         if (loginToken == null || loginToken.isBlank()) {
@@ -159,26 +170,6 @@ public class LoginTokenAuthenticator implements Authenticator {
 
             LOG.infof("Login token authenticator: authenticated user '%s'", user.getUsername());
             context.setUser(user);
-
-            // AcrStore sets the Keycloak auth-session note "level-of-authentication".
-            // With step-up-authentication enabled, TokenManager reads this note via
-            // oidc-acr-mapper and maps it back to the ACR string using acr.loa.map.
-            // Default to LoA 2 (biometric/device) when no acr claim is present.
-            int loa = 2;
-            Object acrClaim = authorizationGrantContext.getJWT().getOtherClaims().get("acr");
-            if (acrClaim != null) {
-                try {
-                    loa = Integer.parseInt(acrClaim.toString());
-                } catch (NumberFormatException e) {
-                    LOG.warnf("Cannot parse acr claim '%s' as integer, defaulting to LoA 2", acrClaim);
-                }
-            }
-            new AcrStore(context.getSession(), context.getAuthenticationSession()).setLevelAuthenticated(loa);
-            // Also write to user session note so the userinfo endpoint can include the acr claim
-            // via oidc-usersessionmodel-note-mapper (AcrProtocolMapper does not implement UserInfoTokenMapper).
-            context.getAuthenticationSession().setUserSessionNote("level-of-authentication", String.valueOf(loa));
-            LOG.debugf("Set LoA=%d for user '%s' (acr claim: %s)", loa, user.getUsername(), acrClaim);
-
             context.success();
 
         } catch (Exception e) {
@@ -214,5 +205,39 @@ public class LoginTokenAuthenticator implements Authenticator {
     @Override
     public void close() {
         // no-op
+    }
+
+    // -----------------------------------------------------------------------
+    // AuthenticationFlowCallback - set LoA like ConditionalLoaAuthenticator
+    // -----------------------------------------------------------------------
+
+    @Override
+    public void onParentFlowSuccess(AuthenticationFlowContext context) {
+        AuthenticationSessionModel authSession = context.getAuthenticationSession();
+        AcrStore acrStore = new AcrStore(session, authSession);
+
+        // Get LoA from the acr claim in the login token (default to 2 for biometric/device)
+        int newLoa = 2;
+        
+        // Set the level - same as ConditionalLoaAuthenticator.onParentFlowSuccess
+        acrStore.setLevelAuthenticated(newLoa);
+        
+        // Ensure LOA_MAP is copied to user session for future SSO
+        String loaMap = authSession.getAuthNote(Constants.LOA_MAP);
+        LOG.infof("onParentFlowSuccess: LOA_MAP=%s", loaMap);
+        if (loaMap != null) {
+            authSession.setUserSessionNote(Constants.LOA_MAP, loaMap);
+            LOG.infof("onParentFlowSuccess: copied LOA_MAP to user session");
+        }
+    }
+
+    @Override
+    public void onTopFlowSuccess(AuthenticationFlowModel topFlow) {
+        AuthenticationSessionModel authSession = session.getContext().getAuthenticationSession();
+        AcrStore acrStore = new AcrStore(session, authSession);
+
+        LOG.infof("Updating authenticated levels in authSession '%s' to user session note for future authentications: %s", 
+            authSession.getParentSession().getId(), authSession.getAuthNote(Constants.LOA_MAP));
+        authSession.setUserSessionNote(Constants.LOA_MAP, authSession.getAuthNote(Constants.LOA_MAP));
     }
 }

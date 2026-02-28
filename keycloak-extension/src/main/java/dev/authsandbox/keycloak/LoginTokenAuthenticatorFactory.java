@@ -2,17 +2,15 @@ package dev.authsandbox.keycloak;
 
 import org.keycloak.Config;
 import org.keycloak.authentication.Authenticator;
-import org.keycloak.authentication.AuthenticatorFactory;
+import org.keycloak.authentication.AuthenticationFlowCallbackFactory;
 import org.keycloak.models.AuthenticationExecutionModel;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionFactory;
 import java.util.List;
 
-public class LoginTokenAuthenticatorFactory implements AuthenticatorFactory {
+public class LoginTokenAuthenticatorFactory implements AuthenticationFlowCallbackFactory {
 
     public static final String PROVIDER_ID = "login-token-authenticator";
-
-    private static final LoginTokenAuthenticator SINGLETON = new LoginTokenAuthenticator();
 
     @Override
     public String getId() {
@@ -60,7 +58,7 @@ public class LoginTokenAuthenticatorFactory implements AuthenticatorFactory {
 
     @Override
     public Authenticator create(KeycloakSession session) {
-        return SINGLETON;
+        return new LoginTokenAuthenticator(session);
     }
 
     @Override

@@ -153,7 +153,7 @@ resource "keycloak_openid_client" "target_app_client" {
 # oidc-acr-mapper reads the authenticated LoA from AcrStore and maps it to
 # the ACR string via acr.loa.map. Works for access token and ID token.
 # ---------------------------------------------------------------------------
-resource "keycloak_openid_client_protocol_mapper" "device_login_acr_mapper" {
+resource "keycloak_generic_protocol_mapper" "device_login_acr_mapper" {
   realm_id        = keycloak_realm.auth_sandbox.id
   client_id       = keycloak_openid_client.device_login_client.id
   name            = "acr"
@@ -161,9 +161,10 @@ resource "keycloak_openid_client_protocol_mapper" "device_login_acr_mapper" {
   protocol_mapper = "oidc-acr-mapper"
 
   config = {
-    "id.token.claim"          = "true"
-    "access.token.claim"      = "true"
+    "id.token.claim"            = "true"
+    "access.token.claim"        = "true"
     "introspection.token.claim" = "true"
+    "userinfo.token.claim"      = "false"
   }
 }
 
@@ -171,7 +172,7 @@ resource "keycloak_openid_client_protocol_mapper" "device_login_acr_mapper" {
 # user-session-note mapper is required to include acr in the userinfo response.
 # LoginTokenAuthenticator writes level-of-authentication via setUserSessionNote() so
 # the value is available on the UserSessionModel after authentication.
-resource "keycloak_openid_client_protocol_mapper" "device_login_acr_userinfo_mapper" {
+resource "keycloak_generic_protocol_mapper" "device_login_acr_userinfo_mapper" {
   realm_id        = keycloak_realm.auth_sandbox.id
   client_id       = keycloak_openid_client.device_login_client.id
   name            = "acr-userinfo"
@@ -187,7 +188,7 @@ resource "keycloak_openid_client_protocol_mapper" "device_login_acr_userinfo_map
 # Protocol Mapper: ACR — target-app-client
 # Same mapper for the SPA client so that browser-based step-up ACR is visible.
 # ---------------------------------------------------------------------------
-resource "keycloak_openid_client_protocol_mapper" "target_app_acr_mapper" {
+resource "keycloak_generic_protocol_mapper" "target_app_acr_mapper" {
   realm_id        = keycloak_realm.auth_sandbox.id
   client_id       = keycloak_openid_client.target_app_client.id
   name            = "acr"
@@ -195,13 +196,14 @@ resource "keycloak_openid_client_protocol_mapper" "target_app_acr_mapper" {
   protocol_mapper = "oidc-acr-mapper"
 
   config = {
-    "id.token.claim"          = "true"
-    "access.token.claim"      = "true"
+    "id.token.claim"            = "true"
+    "access.token.claim"        = "true"
     "introspection.token.claim" = "true"
+    "userinfo.token.claim"      = "false"
   }
 }
 
-resource "keycloak_openid_client_protocol_mapper" "target_app_acr_userinfo_mapper" {
+resource "keycloak_generic_protocol_mapper" "target_app_acr_userinfo_mapper" {
   realm_id        = keycloak_realm.auth_sandbox.id
   client_id       = keycloak_openid_client.target_app_client.id
   name            = "acr-userinfo"

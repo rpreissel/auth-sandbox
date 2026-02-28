@@ -1,5 +1,6 @@
 package dev.authsandbox.keycloak;
 
+import org.jboss.logging.Logger;
 import org.keycloak.authentication.authenticators.util.LoAUtil;
 import org.keycloak.models.AuthenticatedClientSessionModel;
 import org.keycloak.models.ClientSessionContext;
@@ -37,6 +38,8 @@ import java.util.Map;
 public class AcrUserInfoMapper extends AbstractOIDCProtocolMapper
         implements OIDCAccessTokenMapper, OIDCIDTokenMapper, UserInfoTokenMapper {
 
+    private static final Logger LOG = Logger.getLogger(AcrUserInfoMapper.class);
+
     public static final String PROVIDER_ID = "acr-userinfo-mapper";
 
     @Override
@@ -72,8 +75,28 @@ public class AcrUserInfoMapper extends AbstractOIDCProtocolMapper
         AuthenticatedClientSessionModel clientSession = clientSessionCtx.getClientSession();
 
         int loa = LoAUtil.getCurrentLevelOfAuthentication(clientSession);
+        
+        LOG.infof("AcrUserInfoMapper: initial loa from clientSession=%d", loa);
+        
+        // If client session doesn't have LoA set, it will be handled by Keycloak's default mechanism
+        // The LOA_MAP should now be properly set in the user session by LoginTokenAuthenticator
         if (loa < Constants.MINIMUM_LOA) {
-            loa = AuthenticationManager.isSSOAuthentication(clientSession) ? 0 : 1;
+            String userSessionLoa = userSession.getNote(Constants.LEVEL_OF_AUTHENTICATION);
+            LOG.infof("AcrUserInfoMapper: userSession.getNote(LEVEL_OF_AUTHENTICATION)=%s", userSessionLoa);
+            
+            if (userSessionLoa != null) {
+                try {
+                    loa = Integer.parseInt(userSessionLoa);
+                    LOG.infof("AcrUserInfoMapper: parsed loa from userSession=%d", loa);
+                } catch (NumberFormatException e) {
+                    LOG.warnf("Cannot parse userSessionLoa '%s' as integer", userSessionLoa);
+                    loa = AuthenticationManager.isSSOAuthentication(clientSession) ? 0 : 1;
+                }
+            } else {
+                LOG.infof("AcrUserInfoMapper: no LoA found in userSession, using isSSOAuthentication=%s", 
+                    AuthenticationManager.isSSOAuthentication(clientSession));
+                loa = AuthenticationManager.isSSOAuthentication(clientSession) ? 0 : 1;
+            }
         }
 
         Map<String, Integer> acrLoaMap = AcrUtils.getAcrLoaMap(clientSession.getClient());
@@ -93,6 +116,7 @@ public class AcrUserInfoMapper extends AbstractOIDCProtocolMapper
             }
         }
 
+        LOG.infof("AcrUserInfoMapper: final acr='%s' for loa=%d", acr, loa);
         token.getOtherClaims().put("acr", acr);
     }
 }
