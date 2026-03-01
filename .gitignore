@@ -8,7 +8,7 @@ tofu/terraform.tfstate.backup
 tofu/terraform.tfstate.*.backup
 
 # JWT key pairs (generated per environment — never commit)
-device-login/keys/
+auth-service/keys/
 
 # Caddy TLS data and config (auto-managed, not committed)
 caddy-data/
