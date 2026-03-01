@@ -7,6 +7,30 @@
 # "JWT Authorization Grant" identity provider that is activated via
 # --features=jwt-authorization-grant in compose.yml.
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# First Broker Login — Review Profile config
+# ---------------------------------------------------------------------------
+# The built-in "first broker login" flow contains a "Review Profile" step
+# (idp-review-profile) that by default triggers VERIFY_PROFILE for users
+# with missing profile fields (email, firstName, lastName).
+# Device users are identified by userId only and have no email, so we must
+# set update.profile.on.first.login = "off" to suppress the prompt.
+# ---------------------------------------------------------------------------
+data "keycloak_authentication_execution" "review_profile" {
+  realm_id          = keycloak_realm.auth_sandbox.id
+  parent_flow_alias = "first broker login"
+  provider_id       = "idp-review-profile"
+}
+
+resource "keycloak_authentication_execution_config" "review_profile_config" {
+  realm_id     = keycloak_realm.auth_sandbox.id
+  execution_id = data.keycloak_authentication_execution.review_profile.id
+  alias        = "review profile config"
+  config = {
+    "update.profile.on.first.login" = "off"
+  }
+}
+
 resource "keycloak_oidc_identity_provider" "device_login_idp" {
   realm             = keycloak_realm.auth_sandbox.id
   alias             = var.device_login_idp_alias

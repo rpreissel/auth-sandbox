@@ -7,8 +7,8 @@ resource "keycloak_realm" "auth_sandbox" {
 
   display_name = "Auth Sandbox"
 
-  # Default browser flow
-  browser_flow = "browser"
+  # Default browser flow — step-up enables ACR-based LoA enforcement
+  browser_flow = "step-up-browser-flow"
 
   # Token lifetimes (sensible defaults for local dev)
   access_token_lifespan        = "5m"
@@ -20,6 +20,105 @@ resource "keycloak_realm" "auth_sandbox" {
   # Key "acr.loa.map" is the constant Constants.ACR_LOA_MAP used by Keycloak's AcrStore.
   attributes = {
     "acr.loa.map" = jsonencode({ "1" = 1, "2" = 2 })
+  }
+}
+
+# ---------------------------------------------------------------------------
+# Realm User Profile
+# ---------------------------------------------------------------------------
+# Remove required constraints from email, firstName, lastName so that
+# device-login users (identified by userId only, no email) do not trigger
+# the VERIFY_PROFILE required action on login.
+# ---------------------------------------------------------------------------
+resource "keycloak_realm_user_profile" "auth_sandbox" {
+  realm_id = keycloak_realm.auth_sandbox.id
+
+  attribute {
+    name         = "username"
+    display_name = "$${username}"
+
+    validator {
+      name = "length"
+      config = {
+        min = "3"
+        max = "255"
+      }
+    }
+    validator { name = "username-prohibited-characters" }
+    validator { name = "up-username-not-idn-homograph" }
+
+    permissions {
+      view = ["admin", "user"]
+      edit = ["admin", "user"]
+    }
+  }
+
+  attribute {
+    name         = "email"
+    display_name = "$${email}"
+
+    # No required block — device users don't have email
+
+    validator {
+      name = "email"
+    }
+    validator {
+      name = "length"
+      config = {
+        max = "255"
+      }
+    }
+
+    permissions {
+      view = ["admin", "user"]
+      edit = ["admin", "user"]
+    }
+  }
+
+  attribute {
+    name         = "firstName"
+    display_name = "$${firstName}"
+
+    # No required block
+
+    validator {
+      name = "length"
+      config = {
+        max = "255"
+      }
+    }
+    validator { name = "person-name-prohibited-characters" }
+
+    permissions {
+      view = ["admin", "user"]
+      edit = ["admin", "user"]
+    }
+  }
+
+  attribute {
+    name         = "lastName"
+    display_name = "$${lastName}"
+
+    # No required block
+
+    validator {
+      name = "length"
+      config = {
+        max = "255"
+      }
+    }
+    validator { name = "person-name-prohibited-characters" }
+
+    permissions {
+      view = ["admin", "user"]
+      edit = ["admin", "user"]
+    }
+  }
+
+  group {
+    name                = "user-metadata"
+    display_header      = "User metadata"
+    display_description = "Attributes, which refer to user metadata"
   }
 }
 

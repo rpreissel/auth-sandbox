@@ -179,9 +179,12 @@ public class KeycloakAuthClient {
             throw new KeycloakUpstreamException("No Location header in Keycloak auth response");
         }
 
+        log.debug("Keycloak auth redirect location: {}", location);
+
         String returnedState = UriComponentsBuilder.fromUri(location)
                 .build().getQueryParams().getFirst("state");
         if (!state.equals(returnedState)) {
+            log.warn("State mismatch: expected='{}', got='{}', location='{}'", state, returnedState, location);
             throw new KeycloakUpstreamException("State mismatch in Keycloak auth response");
         }
 
