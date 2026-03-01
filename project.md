@@ -20,7 +20,7 @@ Das System generiert dann Links, die aus Schlüsseln bestehen, plus eine kurze B
 
 | Komponente | Beschreibung |
 |------------|---------------|
-| **auth-service** | Auth-Gateway: prüft Schutzlevel, macht Introspection, leitet zu Keycloak oder Content weiter |
+| **auth-service** | Auth-Gateway: prüft Schutzlevel, macht UserInfo, leitet zu Keycloak oder Content weiter |
 | **Datenbank** | Tabelle `cms_pages` im Schema `device_login` (Flyway V10) |
 | **Keycloak** | 4 Clients: `cms-client` (CONFIDENTIAL, Code-Exchange) + 3 PUBLIC-Clients für Keycloak.js |
 | **Content** | Statische HTML-Dateien unter `./cms-content/` (→ `/srv/cms-content/` via Caddy) |
@@ -31,7 +31,7 @@ Das System generiert dann Links, die aus Schlüsseln bestehen, plus eine kurze B
 
 | Client ID | Typ | ACR | Redirect URI(s) | Verwendung |
 |-----------|-----|-----|-----------------|------------|
-| `cms-client` | CONFIDENTIAL | — | `https://cms.localhost:8443/cms/callback` | Server-seitiger Code-Exchange + Token-Introspection |
+| `cms-client` | CONFIDENTIAL | — | `https://cms.localhost:8443/cms/callback` | Server-seitiger Code-Exchange + Token-UserInfo |
 | `cms-public-client` | PUBLIC | 0 | `https://cms.localhost:8443/cms-content/index.html` | Keycloak.js check-sso auf public.html |
 | `cms-premium-client` | PUBLIC | 1 | `https://cms.localhost:8443/cms-content/premium.html` | Keycloak.js check-sso auf premium.html |
 | `cms-admin-client` | PUBLIC | 2 | `https://cms.localhost:8443/cms-content/admin.html` | Keycloak.js check-sso auf admin.html |
@@ -64,8 +64,8 @@ INSERT INTO device_login.cms_pages (name, key, protection_level, content_path) V
 | Level | Bedeutung | Verhalten |
 |-------|-----------|-----------|
 | `public` | Keine Auth erforderlich | Direkter 302-Redirect zu `content_path` |
-| `acr1` | Passwort-Login (LoA 1) | Introspection; bei fehlendem/ungültigem Token oder `acr < 1` → Keycloak-Redirect |
-| `acr2` | MFA (LoA 2) | Introspection; bei `acr < 2` → Keycloak Step-up-Redirect |
+| `acr1` | Passwort-Login (LoA 1) | UserInfo; bei fehlendem/ungültigem Token oder `acr < 1` → Keycloak-Redirect |
+| `acr2` | MFA (LoA 2) | UserInfo; bei `acr < 2` → Keycloak Step-up-Redirect |
 
 **ACR-Vergleich:** Der numerische Wert aus dem Token-`acr`-Claim wird mit dem erforderlichen Level verglichen. Ein `acr2`-Token ist auch gültig für `acr1`-Seiten.
 
@@ -102,10 +102,10 @@ Schritt 5: protection_level == "acr1" oder "acr2", kein Cookie vorhanden
    → Weiter zu Schritt 6 (Keycloak-Redirect)
 
 Schritt 6: protection_level == "acr1" oder "acr2", Cookie vorhanden
-   a) POST http://keycloak:8080/realms/auth-sandbox/protocol/openid-connect/token/introspect
-      Body: token={cms_session_cookie}&client_id=cms-client&client_secret={secret}
-   b) Response active=false oder Fehler → Weiter zu Schritt 7 (Keycloak-Redirect)
-   c) Prüfe acr-Claim aus Introspection-Response:
+   a) GET http://keycloak:8080/realms/auth-sandbox/protocol/openid-connect/userinfo
+      Header: Authorization: Bearer {cms_session_cookie}
+   b) Response 401 oder Fehler → Weiter zu Schritt 7 (Keycloak-Redirect)
+   c) Prüfe acr-Claim aus UserInfo-Response:
       - Für acr1: acr-Wert >= 1 → 302 Redirect zu /cms-content/premium.html ✓
       - Für acr2: acr-Wert >= 2 → 302 Redirect zu /cms-content/admin.html ✓
       - acr zu niedrig → Weiter zu Schritt 7 (Step-up-Redirect)
@@ -132,7 +132,7 @@ Schritt 10: CmsController.callback(code, state)
    d) 302 Redirect zu {Base64-decode(state)} → /p/prm001-premium
 
 Schritt 11: Browser GET /p/prm001-premium (jetzt mit Cookie)
-   → Schritt 3–6: Introspection OK, acr >= 1 → 302 zu /cms-content/premium.html
+   → Schritt 3–6: UserInfo OK, acr >= 1 → 302 zu /cms-content/premium.html
 
 Schritt 12: Browser GET https://cms.localhost:8443/cms-content/premium.html
    → Caddy liefert statische HTML-Datei aus /srv/cms-content/premium.html
@@ -141,7 +141,7 @@ Schritt 12: Browser GET https://cms.localhost:8443/cms-content/premium.html
      → Zeigt preferred_username und acr-Claim
 ```
 
-**Hinweis:** Introspection wird bei **jedem** `/p/**`-Request durchgeführt (kein lokales Token-Caching), um revoked/expired Tokens sofort zu erkennen.
+**Hinweis:** UserInfo wird bei **jedem** `/p/**`-Request durchgeführt (kein lokales Token-Caching), um revoked/expired Tokens sofort zu erkennen.
 
 ### Content-Seiten (`./cms-content/`)
 
@@ -221,7 +221,7 @@ public record KeycloakCmsProperties(
     String clientId,           // cms-client
     String clientSecret,       // aus Env
     String callbackUri,        // https://cms.localhost:8443/cms/callback
-    String introspectEndpoint, // http://keycloak:8080/realms/auth-sandbox/.../introspect
+    String userInfoEndpoint,   // http://keycloak:8080/realms/auth-sandbox/.../userinfo
     String authPublicEndpoint, // https://keycloak.localhost:8443/realms/auth-sandbox/.../auth
     String tokenEndpoint       // http://keycloak:8080/realms/auth-sandbox/.../token
 ) {}
@@ -247,9 +247,9 @@ resolveAccess(key, name, sessionToken):
   1. DB-Lookup findByKey(key) → 404 wenn nicht gefunden
   2. protection_level == "public" → return content_path (kein Token nötig)
   3. sessionToken == null → return buildKeycloakAuthUrl(protection_level, return_url)
-  4. Introspection: POST introspect endpoint mit cms-client credentials
-  5. active == false → return buildKeycloakAuthUrl(protection_level, return_url)
-  6. acr = parseInt(introspect_response["acr"])
+  4. UserInfo: GET userinfo endpoint mit Bearer Token
+  5. Response 401 oder Fehler → return buildKeycloakAuthUrl(protection_level, return_url)
+  6. acr = parseInt(userinfo_response["acr"])
      required = protection_level == "acr1" ? 1 : 2
   7. acr >= required → return content_path
   8. acr < required → return buildKeycloakAuthUrl(required_acr, return_url)
@@ -295,7 +295,7 @@ DELETE /api/v1/cms/pages/{id} (gesichert via SecurityConfig HTTP Basic)
 
 Den Pfad `/api/v1/cms/pages/**` dem bestehenden `ADMIN`-Rolle-Schutz hinzufügen (analog zu `/api/v1/admin/**`).
 
-Zusätzlich: `/p/**` und `/cms/**` als permitAll konfigurieren (kein Spring Security Auth — Auth läuft manuell im Controller über Cookie + Keycloak Introspection).
+Zusätzlich: `/p/**` und `/cms/**` als permitAll konfigurieren (kein Spring Security Auth — Auth läuft manuell im Controller über Cookie + Keycloak UserInfo).
 
 #### Änderung: `application.yaml`
 
@@ -306,7 +306,7 @@ app:
       client-id: ${KEYCLOAK_CMS_CLIENT_ID:cms-client}
       client-secret: ${KEYCLOAK_CMS_CLIENT_SECRET}
       callback-uri: ${KEYCLOAK_CMS_CALLBACK_URI:https://cms.localhost:8443/cms/callback}
-      introspect-endpoint: ${KEYCLOAK_CMS_INTROSPECT_ENDPOINT:http://keycloak:8080/realms/auth-sandbox/protocol/openid-connect/token/introspect}
+      user-info-endpoint: ${KEYCLOAK_CMS_USERINFO_ENDPOINT:http://keycloak:8080/realms/auth-sandbox/protocol/openid-connect/userinfo}
       auth-public-endpoint: ${KEYCLOAK_CMS_AUTH_PUBLIC_ENDPOINT:https://keycloak.localhost:8443/realms/auth-sandbox/protocol/openid-connect/auth}
       token-endpoint: ${KEYCLOAK_CMS_TOKEN_ENDPOINT:http://keycloak:8080/realms/auth-sandbox/protocol/openid-connect/token}
 ```
@@ -316,7 +316,7 @@ app:
 Vier neue Clients:
 
 ```hcl
-# cms-client (CONFIDENTIAL) — server-seitiger Code-Exchange + Introspection
+# cms-client (CONFIDENTIAL) — server-seitiger Code-Exchange + UserInfo
 resource "keycloak_openid_client" "cms_client" {
   realm_id    = keycloak_realm.auth_sandbox.id
   client_id   = "cms-client"

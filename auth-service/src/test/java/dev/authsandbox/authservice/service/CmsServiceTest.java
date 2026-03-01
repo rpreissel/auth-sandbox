@@ -36,7 +36,7 @@ class CmsServiceTest {
                 "cms-client",
                 "cms-secret",
                 "https://cms.localhost:8443/cms/callback",
-                "http://keycloak:8080/realms/auth-sandbox/protocol/openid-connect/token/introspect",
+                "http://keycloak:8080/realms/auth-sandbox/protocol/openid-connect/userinfo",
                 "https://keycloak.localhost:8443/realms/auth-sandbox/protocol/openid-connect/auth",
                 "http://keycloak:8080/realms/auth-sandbox/protocol/openid-connect/token"
         );

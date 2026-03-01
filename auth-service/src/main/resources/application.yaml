@@ -75,6 +75,6 @@ app:
       client-id: ${KEYCLOAK_CMS_CLIENT_ID:cms-client}
       client-secret: ${KEYCLOAK_CMS_CLIENT_SECRET}
       callback-uri: ${KEYCLOAK_CMS_CALLBACK_URI:https://cms.localhost:8443/cms/callback}
-      introspect-endpoint: ${KEYCLOAK_CMS_INTROSPECT_ENDPOINT:http://keycloak:8080/realms/auth-sandbox/protocol/openid-connect/token/introspect}
+      user-info-endpoint: ${KEYCLOAK_CMS_USERINFO_ENDPOINT:http://keycloak:8080/realms/auth-sandbox/protocol/openid-connect/userinfo}
       auth-public-endpoint: ${KEYCLOAK_CMS_AUTH_PUBLIC_ENDPOINT:https://keycloak.localhost:8443/realms/auth-sandbox/protocol/openid-connect/auth}
       token-endpoint: ${KEYCLOAK_CMS_TOKEN_ENDPOINT:http://keycloak:8080/realms/auth-sandbox/protocol/openid-connect/token}

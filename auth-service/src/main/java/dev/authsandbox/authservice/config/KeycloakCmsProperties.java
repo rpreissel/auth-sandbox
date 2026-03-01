@@ -7,7 +7,7 @@ public record KeycloakCmsProperties(
         String clientId,
         String clientSecret,
         String callbackUri,
-        String introspectEndpoint,
+        String userInfoEndpoint,
         String authPublicEndpoint,
         String tokenEndpoint
 ) {}

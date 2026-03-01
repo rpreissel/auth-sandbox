@@ -324,6 +324,22 @@ resource "keycloak_openid_client" "cms_client" {
 }
 
 # ---------------------------------------------------------------------------
+# Protocol Mapper: ACR — cms-client (UserInfo)
+# Der acr-userinfo-mapper stellt den ACR-Claim in der UserInfo-Response bereit
+# ---------------------------------------------------------------------------
+resource "keycloak_generic_protocol_mapper" "cms_client_acr_userinfo_mapper" {
+  realm_id        = keycloak_realm.auth_sandbox.id
+  client_id       = keycloak_openid_client.cms_client.id
+  name            = "acr-userinfo"
+  protocol        = "openid-connect"
+  protocol_mapper = "acr-userinfo-mapper"
+
+  config = {
+    "userinfo.token.claim" = "true"
+  }
+}
+
+# ---------------------------------------------------------------------------
 # Client: cms-public-client (PUBLIC) — Keycloak.js check-sso auf index.html
 # ---------------------------------------------------------------------------
 resource "keycloak_openid_client" "cms_public_client" {
@@ -344,6 +360,21 @@ resource "keycloak_openid_client" "cms_public_client" {
   ]
 
   web_origins = ["https://cms.localhost:8443"]
+}
+
+# ---------------------------------------------------------------------------
+# Protocol Mapper: ACR — cms-public-client (UserInfo)
+# ---------------------------------------------------------------------------
+resource "keycloak_generic_protocol_mapper" "cms_public_client_acr_userinfo_mapper" {
+  realm_id        = keycloak_realm.auth_sandbox.id
+  client_id       = keycloak_openid_client.cms_public_client.id
+  name            = "acr-userinfo"
+  protocol        = "openid-connect"
+  protocol_mapper = "acr-userinfo-mapper"
+
+  config = {
+    "userinfo.token.claim" = "true"
+  }
 }
 
 # ---------------------------------------------------------------------------
@@ -370,6 +401,21 @@ resource "keycloak_openid_client" "cms_premium_client" {
 }
 
 # ---------------------------------------------------------------------------
+# Protocol Mapper: ACR — cms-premium-client (UserInfo)
+# ---------------------------------------------------------------------------
+resource "keycloak_generic_protocol_mapper" "cms_premium_client_acr_userinfo_mapper" {
+  realm_id        = keycloak_realm.auth_sandbox.id
+  client_id       = keycloak_openid_client.cms_premium_client.id
+  name            = "acr-userinfo"
+  protocol        = "openid-connect"
+  protocol_mapper = "acr-userinfo-mapper"
+
+  config = {
+    "userinfo.token.claim" = "true"
+  }
+}
+
+# ---------------------------------------------------------------------------
 # Client: cms-admin-client (PUBLIC) — Keycloak.js check-sso auf admin.html
 # ---------------------------------------------------------------------------
 resource "keycloak_openid_client" "cms_admin_client" {
@@ -390,4 +436,19 @@ resource "keycloak_openid_client" "cms_admin_client" {
   ]
 
   web_origins = ["https://cms.localhost:8443"]
+}
+
+# ---------------------------------------------------------------------------
+# Protocol Mapper: ACR — cms-admin-client (UserInfo)
+# ---------------------------------------------------------------------------
+resource "keycloak_generic_protocol_mapper" "cms_admin_client_acr_userinfo_mapper" {
+  realm_id        = keycloak_realm.auth_sandbox.id
+  client_id       = keycloak_openid_client.cms_admin_client.id
+  name            = "acr-userinfo"
+  protocol        = "openid-connect"
+  protocol_mapper = "acr-userinfo-mapper"
+
+  config = {
+    "userinfo.token.claim" = "true"
+  }
 }

@@ -15,6 +15,7 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriComponentsBuilder;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.client.HttpClientErrorException;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -56,14 +57,14 @@ public class CmsService {
             return buildKeycloakAuthUrl(acrLevel, page.getContentPath());
         }
 
-        Map<String, Object> introspection = introspectToken(sessionToken);
-        boolean active = Boolean.TRUE.equals(introspection.get("active"));
-
-        if (!active) {
+        Map<String, Object> userInfo;
+        try {
+            userInfo = getUserInfo(sessionToken);
+        } catch (RuntimeException e) {
             return buildKeycloakAuthUrl(acrLevel, page.getContentPath());
         }
 
-        Object acrClaim = introspection.get("acr");
+        Object acrClaim = userInfo.get("acr");
         int acrValue = parseAcrClaim(acrClaim);
 
         int required = "acr1".equals(protectionLevel) ? 1 : 2;
@@ -94,24 +95,22 @@ public class CmsService {
     }
 
     @SuppressWarnings("unchecked")
-    private Map<String, Object> introspectToken(String token) {
-        MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
-        body.add("token", token);
-        body.add("client_id", cmsProperties.clientId());
-        body.add("client_secret", cmsProperties.clientSecret());
+    private Map<String, Object> getUserInfo(String token) {
+        try {
+            Map<String, Object> response = restClient.get()
+                    .uri(cmsProperties.userInfoEndpoint())
+                    .header("Authorization", "Bearer " + token)
+                    .retrieve()
+                    .body(Map.class);
 
-        Map<String, Object> response = restClient.post()
-                .uri(cmsProperties.introspectEndpoint())
-                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                .body(body)
-                .retrieve()
-                .body(Map.class);
+            if (response == null) {
+                throw new RuntimeException("Empty userinfo response from Keycloak");
+            }
 
-        if (response == null) {
-            throw new RuntimeException("Empty introspection response from Keycloak");
+            return response;
+        } catch (HttpClientErrorException.Unauthorized e) {
+            throw new RuntimeException("Token invalid or expired");
         }
-
-        return response;
     }
 
     private int parseAcrClaim(Object acrClaim) {
