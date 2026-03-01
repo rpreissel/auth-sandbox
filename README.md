@@ -4,33 +4,33 @@ A mobile authentication project implementing device authorization with biometric
 
 ## Architecture Overview
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              Podman Compose Stack                            │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  ┌──────────┐    ┌──────────────┐    ┌─────────────────┐                   │
-│  │  mobile  │    │ auth-service  │    │    keycloak    │                   │
-│  │   app    │◄──►│  (Spring Boot │◄──►│     (IAM)      │                   │
-│  │ (mock)   │    │    3 / Java)  │    │                │                   │
-│  └──────────┘    └───────┬───────┘    └───────┬────────┘                   │
-│                          │                    │                             │
-│                          │                    │  ┌──────────────────────┐  │
-│                          │                    └──►  device_token_ext   │  │
-│                          │         (SPI)           │  (LoginTokenAuth)   │  │
-│                          │                         └──────────────────────┘  │
-│                          │                                                      │
-│  ┌──────────┐    ┌──────┴───────┐    ┌─────────────┐                         │
-│  │ target-  │    │   postgres   │    │   caddy     │                         │
-│  │   app    │    │ (16 + schemas)   │  (TLS proxy) │                         │
-│  └──────────┘    └───────────────┘    └──────┬──────┘                         │
-│                                              │                                │
-│  ┌──────────┐    ┌───────────────┐          │                                │
-│  │ admin-   │    │  cms-admin    │◄─────────┘                                │
-│  │  mock    │    │   (React)     │                                           │
-│  └──────────┘    └───────────────┘                                           │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph Podman["Podman Compose Stack"]
+        subgraph Frontend["Frontend Services"]
+            Mobile["mobile app<br/>(mock)"]
+            Admin["admin-mock"]
+            Target["target-app"]
+            CmsAdmin["cms-admin"]
+            Home["home"]
+        end
+        
+        Backend["auth-service<br/>(Spring Boot)"]
+        Keycloak["keycloak<br/>(IAM)"]
+        Postgres["postgres<br/>(16)"]
+        Caddy["caddy<br/>(TLS)"]
+        
+        Mobile --> Backend
+        Admin --> Backend
+        Target --> Backend
+        CmsAdmin --> Backend
+        
+        Backend <--> Keycloak
+        Backend <--> Postgres
+        Caddy --> Frontend
+        Caddy --> Backend
+        Caddy --> Keycloak
+    end
 ```
 
 ## Services
@@ -55,57 +55,29 @@ A mobile authentication project implementing device authorization with biometric
 
 Mobile app registers a device, signs a challenge with a biometric/PIN-protected key, receives a JWT device token, which Keycloak exchanges for OIDC tokens via a custom SPI extension.
 
+```mermaid
+sequenceDiagram
+    participant M as Mobile App
+    participant A as auth-service
+    participant K as Keycloak
+    
+    M->>A: 1. POST /challenge
+    A->>M: 2. Challenge (JWT)
+    
+    Note over M: 3. Sign with biometric/PIN
+    
+    M->>A: 4. POST /register + signature
+    A->>K: 5. Verify signature
+    K-->>A: Signature valid
+    
+    A->>M: 6. JWT Device Token
+    
+    A->>K: 7. Auth with device token
+    K->>K: 8. Validate JWT
+    K-->>A: 9. OIDC Tokens
+    
+    A-->>M: 10. OIDC Tokens
 ```
-┌─────────────┐     ┌─────────────────┐     ┌────────────────────┐     ┌─────────────┐
-│   Mobile    │     │  auth-service  │     │     keycloak      │     │   Mobile   │
-│    App      │     │  (Spring Boot) │     │                   │     │    App     │
-└──────┬──────┘     └────────┬────────┘     └─────────┬────────┘     └──────┬──────┘
-       │                     │                          │                     │
-       │  1. POST /challenge │                          │                     │
-       │ ──────────────────► │                          │                     │
-       │                     │                          │                     │
-       │  2. Challenge (JWT) │                          │                     │
-       │ ◄────────────────── │                          │                     │
-       │                     │                          │                     │
-       │  3. Sign with       │                          │                     │
-       │     biometric/PIN   │                          │                     │
-       │     (local)        │                          │                     │
-       │                     │                          │                     │
-       │  4. POST /register │                          │                     │
-       │     + signature    │                          │                     │
-       │ ──────────────────► │                          │                     │
-       │                     │                          │                     │
-       │                     │  5. Verify signature    │                     │
-       │                     │ ◄──────────────────────► │                     │
-       │                     │                          │                     │
-       │                     │  6. JWT Device Token     │                     │
-       │                     │ ◄─────────────────────── │                     │
-       │                     │                          │                     │
-       │                     │                          │  7. Auth with      │
-       │                     │                          │     device token   │
-       │                     │                          │ ─────────────────► │
-       │                     │                          │                     │
-       │                     │                          │  8. Validate JWT  │
-       │                     │                          │ ◄────────────────► │
-       │                     │                          │                     │
-       │                     │                          │  9. OIDC Tokens   │
-       │                     │                          │ ◄────────────────── │
-       │                     │                          │                     │
-       │                     │                          │ 10. OIDC Tokens   │
-       │                     │                          │ ◄────────────────── │
-       │                     │                          │                     │
-       │ 11. OIDC Tokens    │                          │                     │
-       │ ◄────────────────── │                          │                     │
-       │                     │                          │                     │
-```
-
-### Key Components
-
-| Component | Description |
-|-----------|-------------|
-| `mobile_app` | Mobile client with keystore (crypto keys) and login flow |
-| `auth_service` | Merged backend; PostgreSQL schema `device_login` |
-| `keycloak` | IAM with `device_token_ext` (custom SPI) and `user_db` |
 
 ### Endpoints
 
@@ -122,56 +94,33 @@ Mobile app registers a device, signs a challenge with a biometric/PIN-protected 
 
 Browser-based SSO handoff: an existing OIDC session is transferred to a second app using a short-lived transfer token and Keycloak's PAR + JWT Authorization Grant features.
 
-```
-┌─────────────┐     ┌─────────────────┐     ┌────────────────────┐
-│   Browser   │     │  auth-service   │     │     keycloak       │
-│   (App A)   │     │  (SSO Proxy)    │     │                    │
-└──────┬──────┘     └────────┬────────┘     └─────────┬────────┘
-       │                     │                          │
-       │  1. POST /transfer/init                        │
-       │     + access_token     │                          │
-       │ ──────────────────────► │                          │
-       │                     │                          │                     │
-       │                     │  2. Introspect token     │                     │
-       │                     │ ◄───────────────────────► │                     │
-       │                     │                          │                     │
-       │                     │  3. Ensure federated     │                     │
-       │                     │     identity in KC      │                     │
-       │                     │ ◄───────────────────────► │                     │
-       │                     │                          │                     │
-       │                     │  4. Issue transfer token │                     │
-       │                     │ ◄─────────────────────── │                     │
-       │                     │                          │                     │
-       │                     │  5. PAR (Pushed Auth    │                     │
-       │                     │     Request)            │                     │
-       │                     │ ◄───────────────────────► │                     │
-       │                     │                          │                     │
-       │                     │  6. Redirect URI        │                     │
-       │ ◄─────────────────── │ ◄─────────────────────── │                     │
-       │                     │                          │                     │
-       │  7. Browser → Keycloak (transfer token)        │
-       │ ─────────────────────────────────────────────► │
-       │                     │                          │                     │
-       │                     │                          │  8. Validate       │
-       │                     │                          │     transfer token │
-       │                     │                          │ ◄────────────────► │
-       │                     │                          │                     │
-       │                     │                          │ 9. Auth Code       │
-       │                     │                          │ ◄────────────────► │
-       │                     │                          │                     │
-       │ 10. Callback with auth code                   │
-       │ ─────────────────────────────────────────────► │
-       │                     │                          │                     │
-       │                     │ 11. Exchange code       │                     │
-       │                     │     for tokens          │                     │
-       │                     │ ◄───────────────────────► │                     │
-       │                     │                          │                     │
-       │                     │ 12. OIDC Tokens         │                     │
-       │                     │ ◄─────────────────────── │                     │
-       │                     │                          │                     │
-       │                     │ 13. Redirect to App B   │                     │
-       │ ◄─────────────────── │                          │                     │
-       │                     │                          │                     │
+```mermaid
+sequenceDiagram
+    participant B as Browser/App A
+    participant A as auth-service
+    participant K as Keycloak
+    
+    B->>A: 1. POST /transfer/init + access_token
+    A->>K: 2. Introspect token
+    K-->>A: Token valid
+    
+    A->>K: 3. Ensure federated identity
+    K-->>A: Identity OK
+    
+    A->>B: 4. Transfer token
+    
+    B->>K: 5. PAR (Pushed Auth Request)
+    K-->>B: 6. Redirect URI
+    
+    B->>K: 7. Browser → Keycloak (transfer token)
+    K->>K: 8. Validate transfer token
+    K-->>B: 9. Auth Code
+    
+    B->>A: 10. Callback with auth code
+    A->>K: 11. Exchange code for tokens
+    K-->>A: OIDC Tokens
+    
+    A->>B: 12. Redirect to App B
 ```
 
 ### Endpoints
@@ -184,7 +133,7 @@ Browser-based SSO handoff: an existing OIDC session is transferred to a second a
 
 ---
 
-## Flow 3: CMS Mock (Content Management System)
+## Flow 3: CMS Mock
 
 A CMS mock system with role-based content protection. Pages are accessed via short URLs with keys, and protection levels are enforced using Keycloak authentication and Step-up authentication (ACR).
 
@@ -193,111 +142,81 @@ A CMS mock system with role-based content protection. Pages are accessed via sho
 | Level | Meaning | Behavior |
 |-------|---------|----------|
 | `public` | No auth required | Direct 302 redirect to content |
-| `acr1` | Password login (LoA 1) | UserInfo check; if missing/invalid token or `acr < 1` → Keycloak redirect |
-| `acr2` | MFA (LoA 2) | UserInfo check; if `acr < 2` → Keycloak Step-up redirect |
+| `acr1` | Password login (LoA 1) | UserInfo check; if `acr < 1` → Keycloak redirect |
+| `acr2` | MFA (LoA 2) | UserInfo check; if `acr < 2` → Step-up redirect |
 
 ### Architecture
 
-```
-┌─────────────┐     ┌─────────────────┐     ┌────────────────────┐
-│   Browser   │     │  auth-service   │     │     keycloak       │
-│             │     │   (CMS Gateway)  │     │                    │
-└──────┬──────┘     └────────┬────────┘     └─────────┬────────┘
-       │                     │                          │
-       │  GET /p/prm001-premium                        │
-       │ ──────────────────► │                          │
-       │                     │                          │
-       │                     │  1. Lookup key in DB    │
-       │                     │     (protection_level) │
-       │                     │ ◄──────────────────────► │
-       │                     │     (postgres)          │
-       │                     │                          │
-       │                     │  2. Check cms_session   │
-       │                     │     cookie              │
-       │                     │                          │
-       │                     │  3. (If protected)      │
-       │                     │     GET UserInfo        │
-       │                     │ ◄───────────────────────► │
-       │                     │                          │
-       │                     │  4. Validate acr claim  │
-       │                     │                          │
-       │                     │  5. Redirect to         │
-       │ ◄────────────────── │     /cms-content/*     │
-       │                     │                          │
-       │  GET /cms-content/premium.html                 │
-       │ ─────────────────────────────────────────────►│◄── Caddy (static)
-       │                     │                          │
-       │                     │  6. Keycloak.js         │
-       │                     │     check-sso           │
-       │                     │ ◄───────────────────────► │
-       │                     │                          │
+```mermaid
+flowchart LR
+    B["Browser"] -->|GET /p/key-name| A["auth-service<br/>(CMS Gateway)"]
+    A -->|Lookup key| DB["postgres<br/>cms_pages"]
+    A -->|Check cookie| C["cms_session cookie"]
+    
+    subgraph Auth["Auth Check"]
+        A -->|If protected| K["Keycloak<br/>UserInfo"]
+    end
+    
+    A -->|302| B
+    B -->|GET /cms-content/*| Caddy["Caddy<br/>(static)"]
+    
+    Caddy -->|Keycloak.js check-sso| K
 ```
 
 ### Full Auth Flow (12 Steps)
 
 ```
 Step 1:  Browser GET https://cms.localhost:8443/p/prm001-premium
-
 Step 2:  Caddy proxy /p/* → auth-service:8083
-
-Step 3:  CmsController.resolve(key="prm001", name="premium")
-         a) DB-Lookup: protection_level="acr1", content_path="/cms-content/premium.html"
-         b) Cookie cms_session lesen (falls vorhanden)
+Step 3:  CmsController.resolve(key, name)
+         - DB-Lookup: protection_level, content_path
+         - Read cms_session cookie
 
 Step 4:  protection_level == "public"
-         → 302 Redirect zu https://cms.localhost:8443/cms-content/index.html
-         (kein weiterer Check nötig)
+         → 302 to https://cms.localhost:8443/cms-content/index.html
 
-Step 5:  protection_level == "acr1" oder "acr2", kein Cookie vorhanden
-         → Weiter zu Step 6 (Keycloak-Redirect)
+Step 5:  No cookie for acr1/acr2 → Go to Step 6
 
-Step 6:  protection_level == "acr1" oder "acr2", Cookie vorhanden
-         a) GET http://keycloak:8080/realms/auth-sandbox/protocol/openid-connect/userinfo
-            Header: Authorization: Bearer {cms_session_cookie}
-         b) Response 401 oder Fehler → Weiter zu Step 7 (Keycloak-Redirect)
-         c) Prüfe acr-Claim aus UserInfo-Response:
-            - Für acr1: acr-Wert >= 1 → 302 Redirect zu /cms-content/premium.html
-            - Für acr2: acr-Wert >= 2 → 302 Redirect zu /cms-content/admin.html
-            - acr zu niedrig → Weiter zu Step 7 (Step-up-Redirect)
+Step 6:  Cookie present:
+         a) GET UserInfo with Bearer token
+         b) 401 → Go to Step 7
+         c) Check acr claim:
+            - acr1: acr >= 1 → 302 to premium.html
+            - acr2: acr >= 2 → 302 to admin.html
+            - acr too low → Go to Step 7
 
-Step 7:  302 Redirect zu Keycloak Authorization Endpoint
-         Location: https://keycloak.localhost:8443/realms/auth-sandbox/protocol/openid-connect/auth
-           ?client_id=cms-client
-           &redirect_uri=https://cms.localhost:8443/cms/callback
-           &response_type=code
-           &scope=openid
-           &acr_values={required_level}    ← "1" für acr1, "2" für acr2
-           &state={Base64(return_url)}    ← z.B. Base64("/p/prm001-premium")
+Step 7:  302 to Keycloak Auth Endpoint
+         ?client_id=cms-client
+         &redirect_uri=https://cms.localhost:8443/cms/callback
+         &response_type=code
+         &acr_values={1|2}
+         &state={Base64(return_url)}
 
-Step 8:  User authentifiziert sich bei Keycloak (Passwort, ggf. OTP für acr2)
+Step 8:  User authenticates (password, OTP for acr2)
 
-Step 9:  Keycloak → GET https://cms.localhost:8443/cms/callback?code=...&state=...
+Step 9:  Keycloak → GET /cms/callback?code=...&state=...
 
-Step 10: CmsController.callback(code, state)
-         a) POST http://keycloak:8080/realms/auth-sandbox/protocol/openid-connect/token
-            Body: grant_type=authorization_code&client_id=cms-client&client_secret={secret}
-                  &code={code}&redirect_uri=https://cms.localhost:8443/cms/callback
-         b) Access Token aus Response extrahieren
-         c) Cookie setzen: cms_session={access_token}; HttpOnly; Secure; Path=/; SameSite=Lax
-         d) 302 Redirect zu {Base64-decode(state)} → /p/prm001-premium
+Step 10: CmsController.callback:
+         a) POST token endpoint (code → access_token)
+         b) Set cookie: cms_session={token}; HttpOnly; Secure
+         c) 302 to return_url
 
-Step 11: Browser GET /p/prm001-premium (jetzt mit Cookie)
-         → Step 3–6: UserInfo OK, acr >= 1 → 302 zu /cms-content/premium.html
+Step 11: Browser GET /p/prm001-premium (with cookie)
+         → Steps 3-6: UserInfo OK, acr >= 1 → 302
 
-Step 12: Browser GET https://cms.localhost:8443/cms-content/premium.html
-         → Caddy liefert statische HTML-Datei
-         → Keycloak.js init({onLoad:'check-sso', clientId:'cms-premium-client'})
-           → SSO-Session von Step 10 vorhanden → authenticated=true
+Step 12: Browser GET /cms-content/premium.html
+         → Caddy serves static HTML
+         → Keycloak.js check-sso → authenticated=true
 ```
 
 ### Keycloak Clients
 
-| Client ID | Type | ACR | Redirect URI(s) | Usage |
-|-----------|------|-----|-----------------|-------|
-| `cms-client` | CONFIDENTIAL | — | `https://cms.localhost:8443/cms/callback` | Server-side code exchange + token userinfo |
-| `cms-public-client` | PUBLIC | 0 | `https://cms.localhost:8443/cms-content/index.html` | Keycloak.js check-sso on public.html |
-| `cms-premium-client` | PUBLIC | 1 | `https://cms.localhost:8443/cms-content/premium.html` | Keycloak.js check-sso on premium.html |
-| `cms-admin-client` | PUBLIC | 2 | `https://cms.localhost:8443/cms-content/admin.html` | Keycloak.js check-sso on admin.html |
+| Client ID | Type | Redirect URI(s) | Usage |
+|-----------|------|-----------------|-------|
+| `cms-client` | CONFIDENTIAL | `https://cms.localhost:8443/cms/callback` | Server-side code exchange |
+| `cms-public-client` | PUBLIC | `https://cms.localhost:8443/cms-content/index.html` | Keycloak.js check-sso |
+| `cms-premium-client` | PUBLIC | `https://cms.localhost:8443/cms-content/premium.html` | Keycloak.js check-sso |
+| `cms-admin-client` | PUBLIC | `https://cms.localhost:8443/cms-content/admin.html` | Keycloak.js check-sso |
 
 ### Database Model
 
@@ -316,42 +235,34 @@ CREATE TABLE device_login.cms_pages (
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/p/{key}-{name}` | Check protection level → 302 to content or Keycloak |
-| GET | `/cms/callback` | OAuth2 callback → code exchange → cookie set → 302 |
+| GET | `/p/{key}-{name}` | Check protection → redirect to content or Keycloak |
+| GET | `/cms/callback` | OAuth2 callback → code exchange → cookie → redirect |
 | POST | `/api/v1/cms/pages` | Create page (HTTP Basic Auth) |
-| GET | `/api/v1/cms/pages` | List all pages (HTTP Basic Auth) |
+| GET | `/api/v1/cms/pages` | List pages (HTTP Basic Auth) |
 | DELETE | `/api/v1/cms/pages/{id}` | Delete page (HTTP Basic Auth) |
 
 ---
 
 # Repository Structure
 
-| Directory / File | Purpose |
-|------------------|---------|
-| `auth-service/` | Spring Boot 3 / Java 21 — merged backend (device-login + sso-proxy + CMS) |
+| Directory | Purpose |
+|-----------|---------|
+| `auth-service/` | Spring Boot 3 / Java 21 — merged backend (device-login + SSO + CMS) |
 | `keycloak-extension/` | Keycloak SPI (`LoginTokenAuthenticator`) |
 | `app-mock-react/` | React/TS/Vite/Tailwind — mobile app mock |
 | `admin-mock-react/` | React/TS/Vite/Tailwind — admin panel |
-| `target-app-react/` | React/TS/Vite/Tailwind — OIDC Auth Code + PKCE target SPA |
+| `target-app-react/` | React/TS/Vite/Tailwind — OIDC target SPA |
 | `cms-admin-react/` | React/TS/Vite/Tailwind — CMS admin panel |
 | `cms-content/` | Static HTML content pages |
 | `c4-spec/` | LikeC4 architecture diagrams |
-| `tofu/` | OpenTofu (Terraform) — Keycloak realm setup |
+| `tofu/` | OpenTofu — Keycloak realm setup |
 | `compose.yml` | Podman Compose stack (9 services) |
-| `Caddyfile` | Caddy reverse proxy — TLS termination for `*.localhost` |
-| `.env` / `.env.example` | Secrets — `.env` is **not committed** |
+| `Caddyfile` | Caddy reverse proxy — TLS for `*.localhost` |
+| `.env` / `.env.example` | Secrets (`.env` not committed) |
 
 ---
 
 # Quick Start
-
-## Prerequisites
-
-```bash
-brew install podman podman-compose
-```
-
-## Setup
 
 ```bash
 # 1. /etc/hosts (one-time)
@@ -388,10 +299,10 @@ podman compose up -d
 |-----|-------------|
 | https://home.localhost:8443 | Developer start page |
 | https://keycloak.localhost:8443 | Keycloak Admin UI |
-| https://auth-service.localhost:8443/actuator/health | auth-service health check |
+| https://auth-service.localhost:8443/actuator/health | auth-service health |
 | https://admin.localhost:8443 | Admin mock panel |
 | https://app-mock.localhost:8443 | Mobile app mock |
-| https://target-app.localhost:8443 | SSO transfer target app |
+| https://target-app.localhost:8443 | SSO transfer target |
 | https://cms.localhost:8443 | CMS content pages |
 | https://cms.localhost:8443/cms-admin/ | CMS admin panel |
 
@@ -400,7 +311,6 @@ podman compose up -d
 # Build & Test Commands
 
 ## React Apps
-
 ```bash
 cd app-mock-react && npm run build
 cd admin-mock-react && npm run build
@@ -409,7 +319,6 @@ cd cms-admin-react && npm run build
 ```
 
 ## React Tests (Playwright)
-
 ```bash
 cd app-mock-react && npm test
 cd admin-mock-react && npm test
@@ -418,15 +327,12 @@ cd cms-admin-react && npm test
 ```
 
 ## auth-service
-
 ```bash
 cd auth-service && ./gradlew bootJar
 cd auth-service && ./gradlew test
-cd auth-service && ./gradlew test --tests "dev.authsandbox.authservice.service.JwtServiceTest"
 ```
 
 ## keycloak-extension
-
 ```bash
 cd keycloak-extension && ./gradlew jar
 ```
@@ -437,6 +343,6 @@ cd keycloak-extension && ./gradlew jar
 
 - Never log secrets, tokens, passwords, or private keys
 - Never commit secrets — use environment variables
-- Cryptographic operations must use well-vetted libraries; no custom crypto primitives
-- JWT validation must always verify signature, `exp`, `aud`, and `iss`
-- Device tokens are sensitive; treat them with the same care as OIDC access tokens
+- Cryptographic operations must use well-vetted libraries
+- JWT validation must verify signature, `exp`, `aud`, and `iss`
+- Device tokens are sensitive; treat with same care as OIDC tokens
