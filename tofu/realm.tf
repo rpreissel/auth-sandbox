@@ -133,7 +133,6 @@ resource "keycloak_openid_client" "device_login_client" {
 
   access_type = "CONFIDENTIAL"
 
-  # Standard Flow only — the device-login service drives the code exchange
   standard_flow_enabled        = true
   implicit_flow_enabled        = false
   direct_access_grants_enabled = false
@@ -148,6 +147,11 @@ resource "keycloak_openid_client" "device_login_client" {
 
   authentication_flow_binding_overrides {
     browser_id = keycloak_authentication_flow.login_token_flow.id
+  }
+
+  extra_config = {
+    "jwtAuthorizationGrant"                = "true"
+    "allowedIdentityProvidersForJwtGrant"  = var.device_login_idp_alias
   }
 }
 

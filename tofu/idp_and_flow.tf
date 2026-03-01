@@ -40,8 +40,6 @@ resource "keycloak_oidc_identity_provider" "device_login_idp" {
   trust_email       = true
   first_broker_login_flow_alias = "first broker login"
 
-  # The mrparkers provider requires these OIDC fields even though jwt-auth-grant
-  # does not use them. Keycloak ignores them for this provider type.
   authorization_url  = "https://placeholder.invalid/auth"
   token_url          = "https://placeholder.invalid/token"
   client_id          = "placeholder"
@@ -50,6 +48,13 @@ resource "keycloak_oidc_identity_provider" "device_login_idp" {
   jwks_url           = var.device_login_jwks_url
   issuer             = var.jwt_issuer
   validate_signature = true
+
+  extra_config = {
+    "enableJwtAuthorizationGrant"                      = "true"
+    "allowedJwtAuthorizationGrantClockSkew"           = "0"
+    "jwtAuthorizationGrantMaxAllowedAge"             = "300"
+    "jwtAuthorizationGrantAllowAssertionReuse"        = "false"
+  }
 }
 
 # ---------------------------------------------------------------------------
