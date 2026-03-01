@@ -1,7 +1,7 @@
 model {
     user = actor
-    
-    browser = container {
+
+    browser = webapp {
         description "Web browser accessing CMS pages"
     }
 
