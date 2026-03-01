@@ -96,3 +96,23 @@ export function InfoCell({ label, value, span }: InfoCellProps) {
     </div>
   );
 }
+
+// ── Spinner ─────────────────────────────────────────────────────────
+
+interface SpinnerProps {
+  size?: 'sm' | 'md' | 'lg';
+}
+
+const spinnerSizes = {
+  sm: 'w-4 h-4',
+  md: 'w-5 h-5',
+  lg: 'w-6 h-6',
+};
+
+export function Spinner({ size = 'sm' }: SpinnerProps) {
+  return (
+    <svg className={`animate-spin ${spinnerSizes[size]}`} viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="40" strokeDashoffset="15" strokeLinecap="round"/>
+    </svg>
+  );
+}

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import BiometricModal from '../components/BiometricModal';
+import { Spinner } from '../components/ui';
 import { startLogin, verifyLogin } from '../services/api';
 import { signChallenge } from '../services/crypto';
 import type { DeviceBinding, LogEntry, OidcTokens } from '../types';
@@ -95,7 +96,7 @@ export default function HomeScreen({ binding, privateKey, onLoggedIn, onUnregist
         {/* Primary action */}
         <button className="btn-primary text-base py-4" onClick={handleLogin} disabled={busy}>
           {busy
-            ? <><Spinner /> Anmelden…</>
+            ? <><Spinner size="md" /> Anmelden…</>
             : <>🔐 Mit Biometrie anmelden</>}
         </button>
 
@@ -119,13 +120,5 @@ export default function HomeScreen({ binding, privateKey, onLoggedIn, onUnregist
         </button>
       </div>
     </>
-  );
-}
-
-function Spinner() {
-  return (
-    <svg className="animate-spin w-5 h-5" viewBox="0 0 24 24" fill="none">
-      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="40" strokeDashoffset="15" strokeLinecap="round"/>
-    </svg>
   );
 }

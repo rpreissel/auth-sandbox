@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { generateDeviceId, generateKeyPair, exportPublicKeyPem } from '../services/crypto';
 import { saveBinding, savePrivateKey } from '../services/storage';
 import { registerDevice } from '../services/api';
+import { Spinner } from '../components/ui';
 import type { DeviceBinding, LogEntry } from '../types';
 
 interface Props {
@@ -149,13 +150,5 @@ export default function UnregisteredScreen({ onRegistered, log, baseUrl, onBaseU
         </div>
       </details>
     </div>
-  );
-}
-
-function Spinner() {
-  return (
-    <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
-      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="40" strokeDashoffset="15" strokeLinecap="round"/>
-    </svg>
   );
 }
