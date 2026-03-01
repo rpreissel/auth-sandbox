@@ -37,3 +37,7 @@ node_modules/
 # Playwright test reports
 **/playwright-report/
 **/test-results/
+
+# Dolt database files (added by bd init)
+.dolt/
+*.db
