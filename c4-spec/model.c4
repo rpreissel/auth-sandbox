@@ -1,5 +1,9 @@
 model {
     user = actor
+    
+    browser = container {
+        description "Web browser accessing CMS pages"
+    }
 
     mobile_app = mobileapp {
         description "Mobile application for users"
@@ -30,63 +34,6 @@ model {
                 '''
             }
         }
-    }
-
-    auth_service = backend {
-        description "Merged backend: device-login + SSO transfer flows"
-        -> keycloak.device_token_ext "Exchange device token to OIDC tokens" {
-            description '''
-            Manages device tokens for authentication.
-            '''
-        }
-        -> keycloak "POST /token/introspect {accessToken}" {
-            description '''
-            Introspects the incoming access token to verify it is active
-            and extract the userId claim.
-            '''
-        }
-        -> keycloak "POST /ext/par/request {login_token, code_challenge, state}" {
-            description '''
-            Pushes authorization request (PAR, RFC 9126) with a signed
-            login_token assertion, PKCE code_challenge, and state JWT.
-            '''
-        }
-        -> keycloak "POST /token {code, code_verifier, redirect_uri}" {
-            description '''
-            Exchanges the authorization code for OIDC tokens (PKCE).
-            Tokens are used internally to confirm the flow succeeded
-            and then discarded; the browser is redirected to targetUrl.
-            '''
-        }
-
-        device_db = database {
-            description "Stores devices, registration codes, and challenges"
-        }
-    }
-
-    target_app = webapp {
-        description "SSO transfer destination — auto-starts OIDC Auth Code + PKCE flow on load"
-        -> keycloak "OIDC Authorization Code + PKCE" {
-            description '''
-            On load, target-app starts a standard OIDC Auth Code + PKCE flow.
-            The browser sends the Keycloak SSO session cookie automatically;
-            Keycloak issues a code without a login prompt.
-            target-app exchanges the code via Caddy /api/token proxy.
-            '''
-        }
-    }
-
-    cms_admin_spa = webapp {
-        description "CMS admin panel for managing pages and protection levels"
-        -> auth_service "CRUD /api/v1/cms/pages" {
-            description '''
-            HTTP Basic Auth protected API to create, list, and delete CMS pages.
-            '''
-        }
-    }
-
-    cms_content = filesystem {
-        description "Static HTML content pages served by Caddy"
     }
 
     auth_service = backend {
@@ -155,6 +102,31 @@ model {
         }
     }
 
+    target_app = webapp {
+        description "SSO transfer destination — auto-starts OIDC Auth Code + PKCE flow on load"
+        -> keycloak "OIDC Authorization Code + PKCE" {
+            description '''
+            On load, target-app starts a standard OIDC Auth Code + PKCE flow.
+            The browser sends the Keycloak SSO session cookie automatically;
+            Keycloak issues a code without a login prompt.
+            target-app exchanges the code via Caddy /api/token proxy.
+            '''
+        }
+    }
+
+    cms_admin_spa = webapp {
+        description "CMS admin panel for managing pages and protection levels"
+        -> auth_service "CRUD /api/v1/cms/pages" {
+            description '''
+            HTTP Basic Auth protected API to create, list, and delete CMS pages.
+            '''
+        }
+    }
+
+    cms_content = filesystem {
+        description "Static HTML content pages served by Caddy"
+    }
+
     admin_panel = webapp {
         description "Admin panel for managing registration codes and devices"
         -> auth_service "Manage registration codes and devices" {
@@ -189,6 +161,4 @@ model {
             description "Stores Keycloak users, sessions, and realm configuration"
         }
     }
-
-    
 }
