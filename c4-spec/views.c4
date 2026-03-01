@@ -147,38 +147,20 @@ views {
     dynamic view cms_access {
         title 'CMS Page Access Flow'
 
-        user
-            -> browser "GET /p/prm001-premium"
-            -> caddy "Proxy /p/* → auth-service"
-            -> auth_service.cms_controller "Resolve(key, name)"
-            -> auth_service.cms_service "Check protection level"
-            -> auth_service.cms_db "Lookup cms_pages"
+        user -> browser "GET /p/prm001-premium"
+        browser -> caddy "Proxy /p/* → auth-service"
+        caddy -> auth_service.cms_controller "Resolve(key, name)"
+        auth_service.cms_controller -> auth_service.cms_service "Check protection level"
+        auth_service.cms_service -> auth_service.cms_db "Lookup cms_pages"
+        
+        auth_service.cms_service -> browser "302 → /cms-content/index.html (public)"
 
-        alt public page
-            auth_service.cms_service ->> browser "302 → /cms-content/index.html"
-        end
+        browser -> caddy "GET /cms-content/index.html"
+        caddy -> browser "Static HTML"
+        browser -> keycloak "Keycloak.js check-sso"
+        keycloak -> browser "authenticated=true"
 
-        alt protected page, no cookie
-            auth_service.cms_service ->> browser "302 → Keycloak Auth"
-            browser ->> keycloak "Authenticate"
-            keycloak ->> browser "302 → /cms/callback"
-            browser ->> auth_service.cms_controller "GET /cms/callback?code=..."
-            auth_service.cms_service ->> keycloak "POST /token (code → token)"
-            keycloak -->> auth_service.cms_service "access_token"
-            auth_service.cms_service ->> browser "Set cookie: cms_session={token}"
-            browser ->> caddy "GET /p/prm001-premium (with cookie)"
-            caddy ->> auth_service.cms_controller "Resolve (with cookie)"
-            auth_service.cms_service ->> keycloak "GET /userinfo (Bearer token)"
-            keycloak -->> auth_service.cms_service "acr=1"
-            auth_service.cms_service ->> browser "302 → /cms-content/premium.html"
-        end
-
-        browser ->> caddy "GET /cms-content/premium.html"
-        caddy ->> browser "Static HTML"
-        browser ->> keycloak "Keycloak.js check-sso"
-        keycloak -->> browser "authenticated=true"
-
-        include user, browser, caddy, auth_service, auth_service.cms_controller,
+        include user, browser, caddy, auth_service.cms_controller,
                 auth_service.cms_service, auth_service.cms_db, keycloak
     }
 }

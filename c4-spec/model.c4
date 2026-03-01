@@ -123,7 +123,7 @@ model {
         }
     }
 
-    cms_content = filesystem {
+    cms_content = system {
         description "Static HTML content pages served by Caddy"
     }
 
