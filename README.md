@@ -67,13 +67,11 @@ sequenceDiagram
     Note over M: 3. Sign with biometric/PIN
     
     M->>A: 4. POST /register + signature
-    A->>K: 5. Verify signature
-    K-->>A: Signature valid
-    
+    A->>A: 5. Verify signature locally
     A->>M: 6. JWT Device Token
     
-    A->>K: 7. Auth with device token
-    K->>K: 8. Validate JWT
+    A->>K: 7. Auth with device token (IdP)
+    K->>K: 8. Validate device token via SPI
     K-->>A: 9. OIDC Tokens
     
     A-->>M: 10. OIDC Tokens
