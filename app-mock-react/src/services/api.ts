@@ -69,8 +69,8 @@ export interface InitiateTransferResponse {
   expiresInSeconds: number;
 }
 
-const AUTH_SERVICE_URL = 'https://auth-service.localhost:8443';
-const TARGET_APP_URL = 'https://target-app.localhost:8443';
+const AUTH_SERVICE_URL = import.meta.env.VITE_AUTH_SERVICE_URL || 'https://auth-service.localhost:8443';
+const TARGET_APP_URL = import.meta.env.VITE_TARGET_APP_URL || 'https://target-app.localhost:8443';
 
 /**
  * Initiates a browser SSO transfer session via auth-service.

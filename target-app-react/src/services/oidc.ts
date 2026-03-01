@@ -1,10 +1,9 @@
 // ── PKCE helpers ─────────────────────────────────────────────────────────────
 
-const KEYCLOAK_AUTH_ENDPOINT =
-  'https://keycloak.localhost:8443/realms/auth-sandbox/protocol/openid-connect/auth';
-const CLIENT_ID      = 'target-app-client';
-const REDIRECT_URI   = 'https://target-app.localhost:8443/callback';
-const SCOPE          = 'openid profile';
+const KEYCLOAK_AUTH_ENDPOINT = import.meta.env.VITE_KEYCLOAK_AUTH_ENDPOINT || 'https://keycloak.localhost:8443/realms/auth-sandbox/protocol/openid-connect/auth';
+const CLIENT_ID      = import.meta.env.VITE_CLIENT_ID || 'target-app-client';
+const REDIRECT_URI   = import.meta.env.VITE_REDIRECT_URI || 'https://target-app.localhost:8443/callback';
+const SCOPE          = import.meta.env.VITE_SCOPE || 'openid profile';
 
 // Token exchange goes through Caddy proxy (/api/token → Keycloak token endpoint)
 // to avoid CORS issues when calling Keycloak directly from the browser.
