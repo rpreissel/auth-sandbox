@@ -1,13 +1,6 @@
 import { useState } from 'react';
 import type { RegistrationCode } from '../types';
-
-function fmtDate(iso: string | null): string {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleString('en-GB', {
-    dateStyle: 'short',
-    timeStyle: 'medium',
-  });
-}
+import { fmtDate } from '../utils/date';
 
 function isExpired(expiresAt: string | null): boolean {
   if (!expiresAt) return false;
