@@ -8,6 +8,7 @@ deployment {
         }
         pod postgres_service {
             instanceOf auth_service.device_db
+            instanceOf auth_service.cms_db
         }
         pod app_mock_service {
             instanceOf mobile_app
@@ -20,6 +21,12 @@ deployment {
         }
         pod target_app_service {
             instanceOf target_app
+        }
+        pod cms_admin_service {
+            instanceOf cms_admin_spa
+        }
+        pod cms_content_service {
+            instanceOf cms_content
         }
         pod caddy_service {
             instanceOf caddy
