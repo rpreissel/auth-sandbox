@@ -1,0 +1,21 @@
+{
+  "sessionID": "ses_356d64072ffesXl8SZ4SHLlBea",
+  "blocks": {
+    "goal": {
+      "value": "",
+      "charLimit": 1000,
+      "lastModified": "2026-03-01T12:46:54.909Z"
+    },
+    "progress": {
+      "value": "✅ CMS-Clients: Wildcard Redirect-URIs konfiguriert\n✅ Step-up Authentication Flow (manuell deaktiviert wegen Fehler)\n✅ Premium-Page: check-sso funktioniert (Nicht eingeloggt)\n⏳ Step-up Flow korrekt konfigurieren",
+      "charLimit": 2000,
+      "lastModified": "2026-03-01T12:53:22.497Z"
+    },
+    "context": {
+      "value": "",
+      "charLimit": 1500,
+      "lastModified": "2026-03-01T12:46:54.909Z"
+    }
+  },
+  "updatedAt": "2026-03-01T12:53:22.497Z"
+}

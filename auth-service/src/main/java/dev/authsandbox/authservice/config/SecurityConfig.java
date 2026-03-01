@@ -74,10 +74,12 @@ public class SecurityConfig {
                     "/api/v1/devices/**",
                     "/api/v1/auth/**",
                     "/api/v1/transfer/**",
+                    "/p/**",
+                    "/cms/**",
                     "/actuator/health",
                     "/actuator/info"
                 ).permitAll()
-                .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
+                .requestMatchers("/api/v1/admin/**", "/api/v1/cms/**").hasRole("ADMIN")
                 .anyRequest().authenticated()
             )
             .httpBasic(basic -> {});

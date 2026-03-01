@@ -34,6 +34,7 @@ echo "127.0.0.1  app-mock.localhost" | sudo tee -a /etc/hosts
 echo "127.0.0.1  admin.localhost" | sudo tee -a /etc/hosts
 echo "127.0.0.1  target-app.localhost" | sudo tee -a /etc/hosts
 echo "127.0.0.1  home.localhost" | sudo tee -a /etc/hosts
+echo "127.0.0.1  cms.localhost" | sudo tee -a /etc/hosts
 ```
 
 ---
@@ -90,10 +91,11 @@ Services started:
 |---|---|
 | `postgres` | Shared PostgreSQL 16 (Keycloak + auth-service schemas) |
 | `keycloak` | Keycloak 26.x in dev mode |
-| `auth-service` | Spring Boot merged backend (device-login + SSO transfer) |
+| `auth-service` | Spring Boot merged backend (device-login + SSO transfer + CMS) |
 | `app-mock` | Browser mock of the mobile app |
 | `admin-mock` | Browser admin panel |
 | `target-app` | OIDC Auth Code + PKCE target SPA |
+| `cms-admin` | CMS admin panel |
 | `home` | Developer start page with links to all services |
 | `caddy` | TLS-terminating reverse proxy for all `*.localhost` domains |
 
@@ -132,6 +134,8 @@ Create and configure the following (in order):
 | https://admin.localhost:8443 | Admin mock panel |
 | https://app-mock.localhost:8443 | Mobile app mock |
 | https://target-app.localhost:8443 | SSO transfer target app |
+| https://cms.localhost:8443 | CMS content pages |
+| https://cms.localhost:8443/cms-admin/ | CMS admin panel |
 
 ---
 

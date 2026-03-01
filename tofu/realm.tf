@@ -7,8 +7,8 @@ resource "keycloak_realm" "auth_sandbox" {
 
   display_name = "Auth Sandbox"
 
-  # Default browser flow → step-up browser flow (LoA 1 = password, LoA 2 = OTP)
-  browser_flow = "step-up-browser-flow"
+  # Default browser flow
+  browser_flow = "browser"
 
   # Token lifetimes (sensible defaults for local dev)
   access_token_lifespan        = "5m"
@@ -199,4 +199,96 @@ resource "keycloak_generic_protocol_mapper" "target_app_acr_userinfo_mapper" {
   config = {
     "userinfo.token.claim" = "true"
   }
+}
+
+# ---------------------------------------------------------------------------
+# Client: cms-client (CONFIDENTIAL) — server-seitiger Code-Exchange + Introspection
+# ---------------------------------------------------------------------------
+resource "keycloak_openid_client" "cms_client" {
+  realm_id  = keycloak_realm.auth_sandbox.id
+  client_id = "cms-client"
+  name      = "CMS Client"
+  enabled   = true
+
+  access_type = "CONFIDENTIAL"
+
+  standard_flow_enabled        = true
+  implicit_flow_enabled        = false
+  direct_access_grants_enabled = false
+  service_accounts_enabled     = false
+
+  valid_redirect_uris = [
+    var.cms_callback_uri,
+  ]
+
+  client_secret = var.cms_client_secret
+}
+
+# ---------------------------------------------------------------------------
+# Client: cms-public-client (PUBLIC) — Keycloak.js check-sso auf index.html
+# ---------------------------------------------------------------------------
+resource "keycloak_openid_client" "cms_public_client" {
+  realm_id  = keycloak_realm.auth_sandbox.id
+  client_id = "cms-public-client"
+  name      = "CMS Public Client"
+  enabled   = true
+
+  access_type = "PUBLIC"
+
+  standard_flow_enabled        = true
+  implicit_flow_enabled        = false
+  direct_access_grants_enabled = false
+  service_accounts_enabled     = false
+
+  valid_redirect_uris = [
+    var.cms_public_redirect_uri,
+  ]
+
+  web_origins = ["https://cms.localhost:8443"]
+}
+
+# ---------------------------------------------------------------------------
+# Client: cms-premium-client (PUBLIC) — Keycloak.js check-sso auf premium.html
+# ---------------------------------------------------------------------------
+resource "keycloak_openid_client" "cms_premium_client" {
+  realm_id  = keycloak_realm.auth_sandbox.id
+  client_id = "cms-premium-client"
+  name      = "CMS Premium Client"
+  enabled   = true
+
+  access_type = "PUBLIC"
+
+  standard_flow_enabled        = true
+  implicit_flow_enabled        = false
+  direct_access_grants_enabled = false
+  service_accounts_enabled     = false
+
+  valid_redirect_uris = [
+    var.cms_premium_redirect_uri,
+  ]
+
+  web_origins = ["https://cms.localhost:8443"]
+}
+
+# ---------------------------------------------------------------------------
+# Client: cms-admin-client (PUBLIC) — Keycloak.js check-sso auf admin.html
+# ---------------------------------------------------------------------------
+resource "keycloak_openid_client" "cms_admin_client" {
+  realm_id  = keycloak_realm.auth_sandbox.id
+  client_id = "cms-admin-client"
+  name      = "CMS Admin Client"
+  enabled   = true
+
+  access_type = "PUBLIC"
+
+  standard_flow_enabled        = true
+  implicit_flow_enabled        = false
+  direct_access_grants_enabled = false
+  service_accounts_enabled     = false
+
+  valid_redirect_uris = [
+    var.cms_admin_redirect_uri,
+  ]
+
+  web_origins = ["https://cms.localhost:8443"]
 }

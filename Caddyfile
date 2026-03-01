@@ -14,6 +14,13 @@ keycloak.localhost:443 {
     tls internal
 
     # Keycloak sends large OIDC response headers (cookies, PAR, etc.)
+    handle /js/* {
+        reverse_proxy keycloak:8080 {
+            header_up X-Forwarded-Proto "https"
+            header_up X-Forwarded-Port  "8443"
+        }
+    }
+
     reverse_proxy keycloak:8080 {
         header_up X-Forwarded-Proto "https"
         header_up X-Forwarded-Port  "8443"
@@ -122,6 +129,49 @@ target-app.localhost:443 {
     handle {
         root * /srv/target-app
         try_files {path} /index.html
+        file_server
+    }
+}
+
+# cms.localhost — CMS Mock
+cms.localhost:443 {
+    tls internal
+
+    # /p/* — Auth-Gateway (Schutzlevel-Check + Redirect)
+    handle /p/* {
+        reverse_proxy auth-service:8083 {
+            header_up X-Forwarded-Proto "https"
+            header_up X-Forwarded-Port  "8443"
+        }
+    }
+
+    # /cms/* — OAuth2 Callback
+    handle /cms/* {
+        reverse_proxy auth-service:8083 {
+            header_up X-Forwarded-Proto "https"
+            header_up X-Forwarded-Port  "8443"
+        }
+    }
+
+    # /api/* — CMS Admin-API (HTTP Basic Auth)
+    handle /api/* {
+        reverse_proxy auth-service:8083 {
+            header_up X-Forwarded-Proto "https"
+            header_up X-Forwarded-Port  "8443"
+        }
+    }
+
+    # /cms-admin/* — React Admin-SPA (SPA-Fallback)
+    handle /cms-admin/* {
+        uri strip_prefix /cms-admin
+        root * /srv/cms-admin
+        try_files {path} /index.html
+        file_server
+    }
+
+    # /cms-content/* — Statische Content-Seiten
+    handle /cms-content/* {
+        root * /srv
         file_server
     }
 }

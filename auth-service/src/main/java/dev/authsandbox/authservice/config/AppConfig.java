@@ -4,6 +4,7 @@ import dev.authsandbox.authservice.security.KeyLoader;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.web.client.RestClient;
 
 import java.security.KeyPair;
 import java.security.PrivateKey;
@@ -14,7 +15,8 @@ import java.security.PublicKey;
         JwtProperties.class,
         ChallengeProperties.class,
         KeycloakProperties.class,
-        KeycloakAdminProperties.class
+        KeycloakAdminProperties.class,
+        KeycloakCmsProperties.class
 })
 public class AppConfig {
 
@@ -23,5 +25,10 @@ public class AppConfig {
         PrivateKey privateKey = KeyLoader.loadPrivateKey(jwtProperties.privateKeyPath());
         PublicKey publicKey = KeyLoader.loadPublicKey(jwtProperties.publicKeyPath());
         return new KeyPair(publicKey, privateKey);
+    }
+
+    @Bean
+    public RestClient restClient() {
+        return RestClient.create();
     }
 }

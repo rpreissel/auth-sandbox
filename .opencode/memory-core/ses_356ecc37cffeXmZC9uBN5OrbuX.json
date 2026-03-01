@@ -1,0 +1,21 @@
+{
+  "sessionID": "ses_356ecc37cffeXmZC9uBN5OrbuX",
+  "blocks": {
+    "goal": {
+      "value": "CMS-Mock Plan in project.md aktualisiert — bereit zur Implementierung",
+      "charLimit": 1000,
+      "lastModified": "2026-03-01T11:21:13.973Z"
+    },
+    "progress": {
+      "value": "",
+      "charLimit": 2000,
+      "lastModified": "2026-03-01T11:19:29.107Z"
+    },
+    "context": {
+      "value": "",
+      "charLimit": 1500,
+      "lastModified": "2026-03-01T11:19:29.107Z"
+    }
+  },
+  "updatedAt": "2026-03-01T11:21:13.973Z"
+}

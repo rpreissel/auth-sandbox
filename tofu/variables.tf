@@ -69,3 +69,33 @@ variable "device_login_jwks_url" {
   type        = string
   default     = "http://auth-service:8083/api/v1/auth/.well-known/jwks.json"
 }
+
+variable "cms_client_secret" {
+  description = "Client secret for cms-client (KEYCLOAK_CMS_CLIENT_SECRET)."
+  type        = string
+  sensitive   = true
+}
+
+variable "cms_callback_uri" {
+  description = "Callback URI for cms-client."
+  type        = string
+  default     = "https://cms.localhost:8443/cms/callback"
+}
+
+variable "cms_public_redirect_uri" {
+  description = "Redirect URI for cms-public-client."
+  type        = string
+  default     = "https://cms.localhost:8443/cms-content/*"
+}
+
+variable "cms_premium_redirect_uri" {
+  description = "Redirect URI for cms-premium-client."
+  type        = string
+  default     = "https://cms.localhost:8443/cms-content/*"
+}
+
+variable "cms_admin_redirect_uri" {
+  description = "Redirect URI for cms-admin-client."
+  type        = string
+  default     = "https://cms.localhost:8443/cms-content/*"
+}

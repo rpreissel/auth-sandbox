@@ -71,3 +71,10 @@ app:
       sso-proxy-idp-alias: ${KEYCLOAK_SSO_PROXY_IDP_ALIAS:device-login-idp}
       token-endpoint: ${KEYCLOAK_ADMIN_TOKEN_ENDPOINT:http://keycloak:8080/realms/auth-sandbox/protocol/openid-connect/token}
       base-url: ${KEYCLOAK_ADMIN_BASE_URL:http://keycloak:8080}
+    cms:
+      client-id: ${KEYCLOAK_CMS_CLIENT_ID:cms-client}
+      client-secret: ${KEYCLOAK_CMS_CLIENT_SECRET}
+      callback-uri: ${KEYCLOAK_CMS_CALLBACK_URI:https://cms.localhost:8443/cms/callback}
+      introspect-endpoint: ${KEYCLOAK_CMS_INTROSPECT_ENDPOINT:http://keycloak:8080/realms/auth-sandbox/protocol/openid-connect/token/introspect}
+      auth-public-endpoint: ${KEYCLOAK_CMS_AUTH_PUBLIC_ENDPOINT:https://keycloak.localhost:8443/realms/auth-sandbox/protocol/openid-connect/auth}
+      token-endpoint: ${KEYCLOAK_CMS_TOKEN_ENDPOINT:http://keycloak:8080/realms/auth-sandbox/protocol/openid-connect/token}

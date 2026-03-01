@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head><title>CMS — Premium</title></head>
+<body>
+  <h1>Premium Page</h1>
+  <p>Schutzlevel: acr1</p>
+  <p>User: <span id="user">Lädt...</span></p>
+  <p>ACR: <span id="acr">Lädt...</span></p>
+
+  <script type="module">
+    import Keycloak from 'https://cdn.jsdelivr.net/npm/keycloak-js@26.0.5/lib/keycloak.js';
+
+    const keycloak = new Keycloak({
+      url: 'https://keycloak.localhost:8443',
+      realm: 'auth-sandbox',
+      clientId: 'cms-premium-client'
+    });
+    keycloak.init({
+      onLoad: 'check-sso',
+      silentCheckSsoRedirectUri: window.location.origin + '/cms-content/silent-check-sso.html'
+    }).then(authenticated => {
+      document.getElementById('user').textContent =
+        authenticated ? keycloak.tokenParsed.preferred_username : 'Nicht eingeloggt';
+      document.getElementById('acr').textContent =
+        authenticated ? keycloak.tokenParsed.acr : '-';
+    });
+  </script>
+
+  <nav>
+    <a href="/p/pub001-public">Public</a> |
+    <a href="/p/prm001-premium">Premium</a> |
+    <a href="/p/adm001-admin">Admin</a>
+  </nav>
+</body>
+</html>

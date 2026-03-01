@@ -104,7 +104,7 @@ resource "keycloak_authentication_flow" "step_up_subflow" {
 resource "keycloak_authentication_subflow" "step_up_subflow_execution" {
   realm_id          = keycloak_realm.auth_sandbox.id
   parent_flow_alias = keycloak_authentication_flow.step_up_browser_flow.alias
-  alias             = "step-up"
+  alias             = "step-up-auth"
   provider_id       = "basic-flow"
   requirement       = "ALTERNATIVE"
   depends_on        = [keycloak_authentication_execution.step_up_browser_cookie]
@@ -113,10 +113,11 @@ resource "keycloak_authentication_subflow" "step_up_subflow_execution" {
 # ── Level 1 sub-flow: username + password ────────────────────────────────
 resource "keycloak_authentication_subflow" "level1_subflow" {
   realm_id          = keycloak_realm.auth_sandbox.id
-  parent_flow_alias = keycloak_authentication_flow.step_up_subflow.alias
+  parent_flow_alias = "step-up-auth"
   alias             = "level1-subflow"
   provider_id       = "basic-flow"
   requirement       = "CONDITIONAL"
+  depends_on        = [keycloak_authentication_subflow.step_up_subflow_execution]
 }
 
 resource "keycloak_authentication_execution" "level1_condition" {
@@ -148,11 +149,11 @@ resource "keycloak_authentication_execution" "level1_username_password" {
 # ── Level 2 sub-flow: OTP ────────────────────────────────────────────────
 resource "keycloak_authentication_subflow" "level2_subflow" {
   realm_id          = keycloak_realm.auth_sandbox.id
-  parent_flow_alias = keycloak_authentication_flow.step_up_subflow.alias
+  parent_flow_alias = "step-up-auth"
   alias             = "level2-subflow"
   provider_id       = "basic-flow"
   requirement       = "CONDITIONAL"
-  depends_on        = [keycloak_authentication_execution.level1_username_password]
+  depends_on        = [keycloak_authentication_subflow.step_up_subflow_execution]
 }
 
 resource "keycloak_authentication_execution" "level2_condition" {
