@@ -4,7 +4,8 @@ import dev.authsandbox.authservice.dto.AdminDeviceResponse;
 import dev.authsandbox.authservice.dto.AdminRegistrationCodeResponse;
 import dev.authsandbox.authservice.dto.CreateRegistrationCodeRequest;
 import dev.authsandbox.authservice.dto.SyncResult;
-import dev.authsandbox.authservice.service.AdminService;
+import dev.authsandbox.authservice.service.RegistrationCodeService;
+import dev.authsandbox.authservice.service.DeviceManagementService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -20,7 +21,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class AdminController {
 
-    private final AdminService adminService;
+    private final RegistrationCodeService registrationCodeService;
+    private final DeviceManagementService deviceManagementService;
 
     // -----------------------------------------------------------------------
     // Registration codes
@@ -28,25 +30,25 @@ public class AdminController {
 
     @GetMapping("/registration-codes")
     public List<AdminRegistrationCodeResponse> listRegistrationCodes() {
-        return adminService.listRegistrationCodes();
+        return registrationCodeService.listRegistrationCodes();
     }
 
     @PostMapping("/registration-codes")
     public ResponseEntity<AdminRegistrationCodeResponse> createRegistrationCode(
             @Valid @RequestBody CreateRegistrationCodeRequest request) {
-        AdminRegistrationCodeResponse created = adminService.createRegistrationCode(request);
+        AdminRegistrationCodeResponse created = registrationCodeService.createRegistrationCode(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
     @PostMapping("/registration-codes/sync")
     public SyncResult syncRegistrationCodes() {
-        return adminService.syncKeycloakUsers();
+        return registrationCodeService.syncKeycloakUsers();
     }
 
     @DeleteMapping("/registration-codes/{id}")
     public ResponseEntity<Void> deleteRegistrationCode(@PathVariable UUID id) {
         try {
-            adminService.deleteRegistrationCode(id);
+            registrationCodeService.deleteRegistrationCode(id);
             return ResponseEntity.noContent().build();
         } catch (NoSuchElementException ex) {
             return ResponseEntity.notFound().build();
@@ -59,13 +61,13 @@ public class AdminController {
 
     @GetMapping("/devices")
     public List<AdminDeviceResponse> listDevices() {
-        return adminService.listDevices();
+        return deviceManagementService.listDevices();
     }
 
     @DeleteMapping("/devices/{id}")
     public ResponseEntity<Void> deleteDevice(@PathVariable UUID id) {
         try {
-            adminService.deleteDevice(id);
+            deviceManagementService.deleteDevice(id);
             return ResponseEntity.noContent().build();
         } catch (NoSuchElementException ex) {
             return ResponseEntity.notFound().build();

@@ -1,0 +1,21 @@
+{
+  "sessionID": "ses_355af2500ffeBY1pY5LtiKTBwV",
+  "blocks": {
+    "goal": {
+      "value": "Fix Device Login Flow: Remove VERIFY_PROFILE required action from devtools-test-user in Keycloak, then prevent it from being set on future users (fix AdminService/createUserWithFederatedIdentity).",
+      "charLimit": 1000,
+      "lastModified": "2026-03-01T17:18:14.387Z"
+    },
+    "progress": {
+      "value": "✅ Device Login Flow: WORKING\n✅ SSO Transfer Flow: WORKING\n✅ CMS Public (ACR 0): WORKING\n✅ CMS Premium (ACR 1, step-up → ACR 2): WORKING\n✅ CMS Admin (ACR 2): WORKING\n\n✅ Root cause fixed: Keycloak user profile had email/firstName/lastName as required → triggered VERIFY_PROFILE\n✅ Fix persisted in OpenTofu:\n   - keycloak_realm_user_profile in realm.tf (removed required from email/firstName/lastName)\n   - keycloak_authentication_execution_config in idp_and_flow.tf (review profile → \"off\")\n   - browser_flow = \"step-up-browser-flow\" in realm.tf (was incorrectly set to \"browser\")\n✅ tofu apply succeeded — all changes live\n\nALL TASKS COMPLETE — no known open issues.\n",
+      "charLimit": 2000,
+      "lastModified": "2026-03-01T17:36:30.115Z"
+    },
+    "context": {
+      "value": "Key tofu files:\n- tofu/realm.tf → add keycloak_realm_user_profile resource here\n- tofu/idp_and_flow.tf → add data.keycloak_authentication_execution + keycloak_authentication_execution_config for review profile\n\nKeycloak execution IDs (runtime, for reference):\n- review profile execution id: 92a747fe-8824-412c-b65f-cf6d50f9f79f\n- review profile config id: 567d0420-53c9-4c76-b6bd-40025776fd95\n\nRebuild pattern: \n  cd auth-service && ./gradlew bootJar -q\n  podman cp auth-service/build/libs/auth-service-0.1.0.jar auth-sandbox-auth-service-1:/app/app.jar\n  podman compose restart auth-service\n",
+      "charLimit": 1500,
+      "lastModified": "2026-03-01T17:33:24.881Z"
+    }
+  },
+  "updatedAt": "2026-03-01T17:36:30.115Z"
+}

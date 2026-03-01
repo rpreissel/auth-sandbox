@@ -63,8 +63,8 @@ public class KeycloakAuthClient {
      * @return full OIDC token response from Keycloak
      */
     public KeycloakTokenResponse authenticate(String loginToken) {
-        String codeVerifier = generateCodeVerifier();
-        String codeChallenge = generateCodeChallenge(codeVerifier);
+        String codeVerifier = PkceUtil.generateCodeVerifier();
+        String codeChallenge = PkceUtil.generateCodeChallenge(codeVerifier);
         String state = UUID.randomUUID().toString();
 
         String code = authorize(loginToken, codeChallenge, state);
@@ -202,22 +202,16 @@ public class KeycloakAuthClient {
     }
 
     // -----------------------------------------------------------------------
-    // PKCE helpers (RFC 7636)
+    // PKCE helpers (RFC 7636) - DEPRECATED: use PkceUtil instead
     // -----------------------------------------------------------------------
 
+    @Deprecated
     public static String generateCodeVerifier() {
-        byte[] bytes = new byte[32];
-        SECURE_RANDOM.nextBytes(bytes);
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+        return PkceUtil.generateCodeVerifier();
     }
 
+    @Deprecated
     public static String generateCodeChallenge(String codeVerifier) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(codeVerifier.getBytes(StandardCharsets.US_ASCII));
-            return Base64.getUrlEncoder().withoutPadding().encodeToString(hash);
-        } catch (Exception e) {
-            throw new IllegalStateException("SHA-256 unavailable", e);
-        }
+        return PkceUtil.generateCodeChallenge(codeVerifier);
     }
 }

@@ -1,4 +1,5 @@
 // ── PKCE helpers ─────────────────────────────────────────────────────────────
+import { handleApiResponse } from '@auth-sandbox/utils';
 
 const KEYCLOAK_AUTH_ENDPOINT = import.meta.env.VITE_KEYCLOAK_AUTH_ENDPOINT || 'https://keycloak.localhost:8443/realms/auth-sandbox/protocol/openid-connect/auth';
 const CLIENT_ID      = import.meta.env.VITE_CLIENT_ID || 'target-app-client';
@@ -39,12 +40,7 @@ export async function fetchUserinfo(accessToken: string): Promise<Record<string,
   const resp = await fetch('/api/userinfo', {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
-  const json = await resp.json().catch(() => ({})) as Record<string, unknown>;
-  if (!resp.ok) {
-    const msg = (json['error_description'] ?? json['error'] ?? resp.statusText) as string;
-    throw new Error(`Userinfo failed: ${msg}`);
-  }
-  return json;
+  return handleApiResponse<Record<string, unknown>>(resp);
 }
 
 export function generateCodeVerifier(): string {
@@ -117,13 +113,7 @@ export async function exchangeCode(
     body:    body.toString(),
   });
 
-  if (!resp.ok) {
-    const err = await resp.json().catch(() => ({})) as Record<string, unknown>;
-    const msg = (err['error_description'] ?? err['error'] ?? resp.statusText) as string;
-    throw new Error(`Token exchange failed: ${msg}`);
-  }
-
-  const json = await resp.json() as Record<string, unknown>;
+  const json = await handleApiResponse<Record<string, unknown>>(resp);
   return {
     access_token:  json['access_token'] as string,
     id_token:      json['id_token'] as string,

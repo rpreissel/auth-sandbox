@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { Device, RegistrationCode, StatusKind, SyncResult } from './types';
-import { api, ApiError } from './services/api';
+import { api } from './services/api';
+import { ApiError } from '@auth-sandbox/utils';
 import { useActivityLog } from './hooks/useActivityLog';
 import { LoginOverlay } from './components/LoginOverlay';
 import { StatusBadge } from './components/StatusBadge';

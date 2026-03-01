@@ -1,4 +1,5 @@
 import type { Challenge, OidcTokens } from '../types';
+import { handleApiResponse } from '@auth-sandbox/utils';
 
 let baseUrl = '';
 
@@ -17,12 +18,7 @@ async function post<T>(path: string, body: unknown): Promise<T> {
     headers: { 'Content-Type': 'application/json' },
     body:    JSON.stringify(body),
   });
-  const json = await resp.json().catch(() => ({})) as Record<string, unknown>;
-  if (!resp.ok) {
-    const msg = (json['message'] ?? json['error'] ?? resp.statusText) as string;
-    throw new Error(`HTTP ${resp.status}: ${msg}`);
-  }
-  return json as T;
+  return handleApiResponse<T>(resp);
 }
 
 export interface RegisterResponse {
@@ -56,12 +52,7 @@ export async function fetchUserinfo(accessToken: string): Promise<Record<string,
   const resp = await fetch('/api/userinfo', {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
-  const json = await resp.json().catch(() => ({})) as Record<string, unknown>;
-  if (!resp.ok) {
-    const msg = (json['message'] ?? json['error'] ?? resp.statusText) as string;
-    throw new Error(`HTTP ${resp.status}: ${msg}`);
-  }
-  return json;
+  return handleApiResponse<Record<string, unknown>>(resp);
 }
 
 export interface InitiateTransferResponse {
@@ -86,10 +77,5 @@ export async function initiateTransfer(accessToken: string): Promise<InitiateTra
     headers: { 'Content-Type': 'application/json' },
     body:    JSON.stringify({ accessToken, targetUrl: TARGET_APP_URL }),
   });
-  const json = await resp.json().catch(() => ({})) as Record<string, unknown>;
-  if (!resp.ok) {
-    const msg = (json['message'] ?? json['error'] ?? resp.statusText) as string;
-    throw new Error(`HTTP ${resp.status}: ${msg}`);
-  }
-  return json as unknown as InitiateTransferResponse;
+  return handleApiResponse<InitiateTransferResponse>(resp);
 }

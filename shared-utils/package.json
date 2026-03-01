@@ -1,0 +1,10 @@
+{
+  "name": "@auth-sandbox/utils",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "./src/api.ts",
+  "types": "./src/api.ts",
+  "exports": {
+    ".": "./src/api.ts"
+  }
+}

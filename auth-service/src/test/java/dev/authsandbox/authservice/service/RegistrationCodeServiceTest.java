@@ -3,9 +3,7 @@ package dev.authsandbox.authservice.service;
 import dev.authsandbox.authservice.dto.AdminRegistrationCodeResponse;
 import dev.authsandbox.authservice.dto.CreateRegistrationCodeRequest;
 import dev.authsandbox.authservice.dto.SyncResult;
-import dev.authsandbox.authservice.entity.Device;
 import dev.authsandbox.authservice.entity.RegistrationCode;
-import dev.authsandbox.authservice.repository.DeviceRepository;
 import dev.authsandbox.authservice.repository.RegistrationCodeRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -28,17 +26,16 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-class AdminServiceTest {
+class RegistrationCodeServiceTest {
 
     @Mock private RegistrationCodeRepository registrationCodeRepository;
-    @Mock private DeviceRepository deviceRepository;
     @Mock private KeycloakAdminClient keycloakAdminClient;
 
-    private AdminService adminService;
+    private RegistrationCodeService registrationCodeService;
 
     @BeforeEach
     void setUp() {
-        adminService = new AdminService(registrationCodeRepository, deviceRepository, keycloakAdminClient);
+        registrationCodeService = new RegistrationCodeService(registrationCodeRepository, keycloakAdminClient);
     }
 
     // -----------------------------------------------------------------------
@@ -52,7 +49,7 @@ class AdminServiceTest {
         when(keycloakAdminClient.createUserWithFederatedIdentity("alice", "Alice Smith")).thenReturn("kc-uuid-alice");
         when(registrationCodeRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        adminService.createRegistrationCode(
+        registrationCodeService.createRegistrationCode(
                 new CreateRegistrationCodeRequest("alice", "Alice Smith", "plain-secret", null));
 
         // Keycloak user must be created at provisioning time.
@@ -76,7 +73,7 @@ class AdminServiceTest {
         when(registrationCodeRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         OffsetDateTime before = OffsetDateTime.now();
-        adminService.createRegistrationCode(
+        registrationCodeService.createRegistrationCode(
                 new CreateRegistrationCodeRequest("alice", "Alice", "secret", null));
         OffsetDateTime after = OffsetDateTime.now();
 
@@ -84,8 +81,8 @@ class AdminServiceTest {
         verify(registrationCodeRepository).save(captor.capture());
 
         OffsetDateTime expiresAt = captor.getValue().getExpiresAt();
-        assertThat(expiresAt).isAfterOrEqualTo(before.plusHours(AdminService.DEFAULT_VALID_FOR_HOURS));
-        assertThat(expiresAt).isBeforeOrEqualTo(after.plusHours(AdminService.DEFAULT_VALID_FOR_HOURS)
+        assertThat(expiresAt).isAfterOrEqualTo(before.plusHours(RegistrationCodeService.DEFAULT_VALID_FOR_HOURS));
+        assertThat(expiresAt).isBeforeOrEqualTo(after.plusHours(RegistrationCodeService.DEFAULT_VALID_FOR_HOURS)
                 .plus(1, ChronoUnit.SECONDS));
     }
 
@@ -97,7 +94,7 @@ class AdminServiceTest {
         when(registrationCodeRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         OffsetDateTime before = OffsetDateTime.now();
-        adminService.createRegistrationCode(
+        registrationCodeService.createRegistrationCode(
                 new CreateRegistrationCodeRequest("bob", "Bob", "secret", 48));
 
         ArgumentCaptor<RegistrationCode> captor = ArgumentCaptor.forClass(RegistrationCode.class);
@@ -118,7 +115,7 @@ class AdminServiceTest {
         when(registrationCodeRepository.findByUserId("alice")).thenReturn(Optional.of(existing));
 
         assertThatThrownBy(() ->
-                adminService.createRegistrationCode(
+                registrationCodeService.createRegistrationCode(
                         new CreateRegistrationCodeRequest("alice", "Alice", "secret", null)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("alice");
@@ -143,7 +140,7 @@ class AdminServiceTest {
                 .build();
         when(registrationCodeRepository.findById(id)).thenReturn(Optional.of(code));
 
-        adminService.deleteRegistrationCode(id);
+        registrationCodeService.deleteRegistrationCode(id);
 
         verify(keycloakAdminClient).deleteUserByUsername("bob");
         verify(registrationCodeRepository).delete(code);
@@ -161,7 +158,7 @@ class AdminServiceTest {
                 .build();
         when(registrationCodeRepository.findById(id)).thenReturn(Optional.of(code));
 
-        adminService.deleteRegistrationCode(id);
+        registrationCodeService.deleteRegistrationCode(id);
 
         verifyNoInteractions(keycloakAdminClient);
         verify(registrationCodeRepository).delete(code);
@@ -181,7 +178,7 @@ class AdminServiceTest {
         doThrow(new RuntimeException("Keycloak unavailable")).when(keycloakAdminClient).deleteUserByUsername("eve");
 
         // Must not throw — Keycloak cleanup failures are logged and ignored.
-        adminService.deleteRegistrationCode(id);
+        registrationCodeService.deleteRegistrationCode(id);
 
         verify(registrationCodeRepository).delete(code);
     }
@@ -191,7 +188,7 @@ class AdminServiceTest {
         UUID id = UUID.randomUUID();
         when(registrationCodeRepository.findById(id)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> adminService.deleteRegistrationCode(id))
+        assertThatThrownBy(() -> registrationCodeService.deleteRegistrationCode(id))
                 .isInstanceOf(NoSuchElementException.class);
     }
 
@@ -208,61 +205,11 @@ class AdminServiceTest {
                 .expiresAt(expires).build();
         when(registrationCodeRepository.findAll()).thenReturn(List.of(r1, r2));
 
-        List<AdminRegistrationCodeResponse> result = adminService.listRegistrationCodes();
+        List<AdminRegistrationCodeResponse> result = registrationCodeService.listRegistrationCodes();
 
         assertThat(result).hasSize(2);
         assertThat(result).extracting(AdminRegistrationCodeResponse::userId)
                 .containsExactly("u1", "u2");
-    }
-
-    // -----------------------------------------------------------------------
-    // deleteDevice
-    // -----------------------------------------------------------------------
-
-    @Test
-    void deleteDevice_deletesDeviceAndKeycloakUser() {
-        UUID id = UUID.randomUUID();
-        Device device = Device.builder()
-                .deviceId("dev-001")
-                .userId("user-001")
-                .name("My Phone")
-                .publicKey("pem")
-                .keycloakUserId("kc-uuid-001")
-                .build();
-        when(deviceRepository.findById(id)).thenReturn(Optional.of(device));
-
-        adminService.deleteDevice(id);
-
-        verify(keycloakAdminClient).deleteUser("kc-uuid-001");
-        verify(deviceRepository).delete(device);
-    }
-
-    @Test
-    void deleteDevice_continuesIfKeycloakUserDeletionFails() {
-        UUID id = UUID.randomUUID();
-        Device device = Device.builder()
-                .deviceId("dev-002")
-                .userId("user-002")
-                .name("Tablet")
-                .publicKey("pem")
-                .keycloakUserId("kc-uuid-002")
-                .build();
-        when(deviceRepository.findById(id)).thenReturn(Optional.of(device));
-        doThrow(new RuntimeException("Keycloak unavailable")).when(keycloakAdminClient).deleteUser("kc-uuid-002");
-
-        // Must not throw — Keycloak cleanup failures are logged and ignored.
-        adminService.deleteDevice(id);
-
-        verify(deviceRepository).delete(device);
-    }
-
-    @Test
-    void deleteDevice_throwsNoSuchElement_forUnknownId() {
-        UUID id = UUID.randomUUID();
-        when(deviceRepository.findById(id)).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> adminService.deleteDevice(id))
-                .isInstanceOf(NoSuchElementException.class);
     }
 
     // -----------------------------------------------------------------------
@@ -279,7 +226,7 @@ class AdminServiceTest {
         when(keycloakAdminClient.getUserIdByUsername("frank")).thenReturn(Optional.empty());
         when(keycloakAdminClient.createUserWithFederatedIdentity("frank", "Frank")).thenReturn("kc-uuid-frank");
 
-        SyncResult result = adminService.syncKeycloakUsers();
+        SyncResult result = registrationCodeService.syncKeycloakUsers();
 
         verify(keycloakAdminClient).createUserWithFederatedIdentity("frank", "Frank");
         assertThat(result.synced()).isEqualTo(1);
@@ -296,7 +243,7 @@ class AdminServiceTest {
         when(registrationCodeRepository.findAll()).thenReturn(List.of(synced));
         when(keycloakAdminClient.getUserIdByUsername("grace")).thenReturn(Optional.of("kc-uuid-grace"));
 
-        SyncResult result = adminService.syncKeycloakUsers();
+        SyncResult result = registrationCodeService.syncKeycloakUsers();
 
         verify(keycloakAdminClient, never()).createUserWithFederatedIdentity(any(), any());
         assertThat(result.synced()).isEqualTo(0);
@@ -320,7 +267,7 @@ class AdminServiceTest {
                 .thenThrow(new RuntimeException("Keycloak unavailable"));
         when(keycloakAdminClient.createUserWithFederatedIdentity("iris", "Iris")).thenReturn("kc-uuid-iris");
 
-        SyncResult result = adminService.syncKeycloakUsers();
+        SyncResult result = registrationCodeService.syncKeycloakUsers();
 
         assertThat(result.synced()).isEqualTo(1);
         assertThat(result.alreadySynced()).isEqualTo(0);

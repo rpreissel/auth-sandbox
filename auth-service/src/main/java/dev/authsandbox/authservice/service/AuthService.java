@@ -37,6 +37,7 @@ public class AuthService {
     private final ChallengeProperties challengeProperties;
 
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+    private static final String ACR_BIOMETRIC = "2";
 
     @Transactional
     @SuppressWarnings("null")
@@ -102,7 +103,7 @@ public class AuthService {
 
         // The JWT sub must match the federated identity userId registered in Keycloak
         // (createUserWithFederatedIdentity uses userId, not deviceId, as the external subject).
-        String assertionToken = jwtService.issueKeycloakAssertionToken(device.getUserId(), "2");
+        String assertionToken = jwtService.issueKeycloakAssertionToken(device.getUserId(), ACR_BIOMETRIC);
         log.debug("Issued Keycloak assertion token for device '{}' (userId '{}')",
                 device.getDeviceId(), device.getUserId());
 

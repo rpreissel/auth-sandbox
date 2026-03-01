@@ -78,8 +78,8 @@ public class KeycloakTransferClient {
      */
     public PushedAuthorizationResponse pushAuthorizationRequest(
             String loginToken, String stateJwt, String callbackUri) {
-        String codeVerifier  = KeycloakAuthClient.generateCodeVerifier();
-        String codeChallenge = KeycloakAuthClient.generateCodeChallenge(codeVerifier);
+        String codeVerifier  = PkceUtil.generateCodeVerifier();
+        String codeChallenge = PkceUtil.generateCodeChallenge(codeVerifier);
 
         MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
         body.add("response_type",         "code");

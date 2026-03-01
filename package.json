@@ -1,0 +1,11 @@
+{
+  "name": "auth-sandbox",
+  "private": true,
+  "workspaces": [
+    "shared-utils",
+    "app-mock-react",
+    "admin-mock-react",
+    "target-app-react",
+    "cms-admin-react"
+  ]
+}

@@ -1,14 +1,5 @@
 import type { Device, RegistrationCode, SyncResult } from '../types';
-
-export class ApiError extends Error {
-  readonly status: number;
-
-  constructor(message: string, status: number) {
-    super(message);
-    this.name = 'ApiError';
-    this.status = status;
-  }
-}
+import { ApiError, handleApiResponse } from '@auth-sandbox/utils';
 
 interface Credentials {
   username: string;
@@ -42,19 +33,8 @@ async function apiFetch<T>(
   if (resp.status === 401) {
     throw new ApiError('Unauthorized', 401);
   }
-  if (resp.status === 204) {
-    return null as T;
-  }
 
-  const json = await resp.json().catch(() => ({}));
-  if (!resp.ok) {
-    const msg =
-      (json as { message?: string; error?: string }).message ??
-      (json as { message?: string; error?: string }).error ??
-      resp.statusText;
-    throw new ApiError(`HTTP ${resp.status}: ${msg}`, resp.status);
-  }
-  return json as T;
+  return handleApiResponse<T>(resp);
 }
 
 export const api = {

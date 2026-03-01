@@ -1,12 +1,9 @@
 package dev.authsandbox.authservice.service;
 
-import dev.authsandbox.authservice.dto.AdminDeviceResponse;
 import dev.authsandbox.authservice.dto.AdminRegistrationCodeResponse;
 import dev.authsandbox.authservice.dto.CreateRegistrationCodeRequest;
 import dev.authsandbox.authservice.dto.SyncResult;
-import dev.authsandbox.authservice.entity.Device;
 import dev.authsandbox.authservice.entity.RegistrationCode;
-import dev.authsandbox.authservice.repository.DeviceRepository;
 import dev.authsandbox.authservice.repository.RegistrationCodeRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,36 +18,26 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class AdminService {
+public class RegistrationCodeService {
 
-    /** Default validity window when {@code validForHours} is not specified in the request. */
     static final int DEFAULT_VALID_FOR_HOURS = 24;
 
     private final RegistrationCodeRepository registrationCodeRepository;
-    private final DeviceRepository deviceRepository;
     private final KeycloakAdminClient keycloakAdminClient;
-
-    // -----------------------------------------------------------------------
-    // Registration codes
-    // -----------------------------------------------------------------------
 
     public List<AdminRegistrationCodeResponse> listRegistrationCodes() {
         return registrationCodeRepository.findAll().stream()
-                .map(this::toRegistrationCodeResponse)
+                .map(this::toResponse)
                 .toList();
     }
 
     @Transactional
     @SuppressWarnings("null")
     public AdminRegistrationCodeResponse createRegistrationCode(CreateRegistrationCodeRequest request) {
-        // Reject duplicate userId to maintain the unique constraint semantics.
         if (registrationCodeRepository.findByUserId(request.userId()).isPresent()) {
             throw new IllegalArgumentException("A registration code for userId '" + request.userId() + "' already exists");
         }
 
-        // Create the Keycloak user immediately so it is ready when the device registers.
-        // If the user already exists in Keycloak (e.g. pre-provisioned manually), skip creation.
-        // We do not persist the Keycloak UUID — existence is always verified by username lookup.
         if (keycloakAdminClient.getUserIdByUsername(request.userId()).isEmpty()) {
             keycloakAdminClient.createUserWithFederatedIdentity(request.userId(), request.name());
         } else {
@@ -70,7 +57,7 @@ public class AdminService {
         RegistrationCode saved = registrationCodeRepository.save(entity);
         log.info("Created registration code id='{}' for userId='{}', expires at {}",
                 saved.getId(), saved.getUserId(), saved.getExpiresAt());
-        return toRegistrationCodeResponse(saved);
+        return toResponse(saved);
     }
 
     @Transactional
@@ -79,9 +66,6 @@ public class AdminService {
         RegistrationCode code = registrationCodeRepository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("Registration code not found: " + id));
 
-        // Remove the pre-created Keycloak user if no device has been registered yet.
-        // Once a device is registered the user is owned by the Device row and must
-        // be cleaned up via deleteDevice instead.
         if (code.getUseCount() == 0) {
             try {
                 keycloakAdminClient.deleteUserByUsername(code.getUserId());
@@ -95,12 +79,6 @@ public class AdminService {
         log.info("Deleted registration code id='{}'", id);
     }
 
-    /**
-     * Ensures every registration code has a corresponding Keycloak user with a
-     * federated identity link. Checks by username whether the user already exists;
-     * creates it if missing. Failures for individual codes are logged but do not
-     * abort the operation — the returned {@link SyncResult} reports the full outcome.
-     */
     @Transactional
     public SyncResult syncKeycloakUsers() {
         List<RegistrationCode> codes = registrationCodeRepository.findAll();
@@ -129,43 +107,7 @@ public class AdminService {
         return new SyncResult(synced, alreadySynced, failed);
     }
 
-    // -----------------------------------------------------------------------
-    // Devices
-    // -----------------------------------------------------------------------
-
-    public List<AdminDeviceResponse> listDevices() {
-        return deviceRepository.findAll().stream()
-                .map(this::toDeviceResponse)
-                .toList();
-    }
-
-    @Transactional
-    @SuppressWarnings("null")
-    public void deleteDevice(UUID id) {
-        Device device = deviceRepository.findById(id)
-                .orElseThrow(() -> new NoSuchElementException("Device not found: " + id));
-
-        // Remove the corresponding Keycloak user if one was created.
-        if (device.getKeycloakUserId() != null) {
-            try {
-                keycloakAdminClient.deleteUser(device.getKeycloakUserId());
-            } catch (Exception ex) {
-                // Log and continue — the device row should still be removed even if
-                // Keycloak cleanup fails (e.g. user was already deleted manually).
-                log.warn("Failed to delete Keycloak user '{}' for device '{}': {}",
-                        device.getKeycloakUserId(), device.getDeviceId(), ex.getMessage());
-            }
-        }
-
-        deviceRepository.delete(device);
-        log.info("Deleted device id='{}' deviceId='{}'", id, device.getDeviceId());
-    }
-
-    // -----------------------------------------------------------------------
-    // Mapping helpers
-    // -----------------------------------------------------------------------
-
-    private AdminRegistrationCodeResponse toRegistrationCodeResponse(RegistrationCode rc) {
+    private AdminRegistrationCodeResponse toResponse(RegistrationCode rc) {
         return new AdminRegistrationCodeResponse(
                 rc.getId(),
                 rc.getUserId(),
@@ -174,18 +116,6 @@ public class AdminService {
                 rc.getExpiresAt(),
                 rc.getUseCount(),
                 rc.getCreatedAt()
-        );
-    }
-
-    private AdminDeviceResponse toDeviceResponse(Device d) {
-        return new AdminDeviceResponse(
-                d.getId(),
-                d.getDeviceId(),
-                d.getUserId(),
-                d.getName(),
-                d.getKeycloakUserId(),
-                d.getCreatedAt(),
-                d.getUpdatedAt()
         );
     }
 }
