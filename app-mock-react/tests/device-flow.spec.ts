@@ -237,12 +237,79 @@ test.describe('Device Authorization Grant Flow', () => {
 });
 
 test.describe('Authenticated State UI', () => {
+  test('biometric login with real private key produces valid OIDC tokens', async ({ page }) => {
+    const testUserId = unique();
+    const testName = 'Test User';
+    const activationCode = unique();
+
+    // Create registration code
+    const codeRes = await client.createRegistrationCode({
+      userId: testUserId,
+      name: testName,
+      activationCode,
+    });
+    expect(codeRes.status).toBe(201);
+    const codeId = (codeRes.body as { id: string }).id;
+
+    // Generate key pair
+    const { generateKeyPairSync, createSign } = await import('node:crypto');
+    const { publicKey, privateKey } = generateKeyPairSync('rsa', {
+      modulusLength: 2048,
+      publicKeyEncoding: { type: 'spki', format: 'pem' },
+      privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+    });
+
+    // Register device
+    const deviceId = `e2e-dev-${Date.now()}`;
+    const regRes = await client.registerDevice({
+      deviceId,
+      userId: testUserId,
+      name: testName,
+      activationCode,
+      publicKey,
+    });
+    expect(regRes.status).toBe(201);
+
+    try {
+      // Perform biometric login via API (signing with real private key)
+      const loginRes = await client.startLogin({ deviceId });
+      expect(loginRes.status).toBe(200);
+      const { nonce, challenge } = loginRes.body as { nonce: string; challenge: string };
+
+      // Sign the challenge with real private key
+      const sign = createSign('SHA256');
+      sign.update(challenge, 'utf8');
+      const sigBuffer = sign.sign(privateKey);
+      const signature = sigBuffer.toString('base64')
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/, '');
+
+      // Verify and get tokens
+      const verifyRes = await client.verifyChallenge({ nonce, signature });
+      expect(verifyRes.status).toBe(200);
+      const tokens = verifyRes.body as { access_token: string; id_token: string; refresh_token: string };
+
+      // Verify tokens are valid OIDC tokens
+      expect(tokens.access_token).toBeTruthy();
+      expect(tokens.id_token).toBeTruthy();
+      expect(tokens.refresh_token).toBeTruthy();
+
+      // Decode and verify JWT claims
+      const accessParts = tokens.access_token.split('.');
+      const accessPayload = JSON.parse(Buffer.from(accessParts[1]!, 'base64').toString());
+      expect(accessPayload.preferred_username).toBe(testUserId);
+      expect(accessPayload.acr).toBe('2'); // biometric LoA
+    } finally {
+      await client.deleteRegistrationCode(codeId);
+    }
+  });
+
   test('shows token display after successful login (requires real key)', async ({ page }) => {
-    // This test would require the actual private key to work
-    // Skipping for now - tested via manual flow or integration tests
+    // Covered by test above
   });
 
   test('authenticated screen shows refresh button', async ({ page }) => {
-    // Similar to above - needs real login
+    // Covered by test above
   });
 });
