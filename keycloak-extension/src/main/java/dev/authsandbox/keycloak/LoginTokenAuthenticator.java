@@ -83,6 +83,11 @@ public class LoginTokenAuthenticator implements AuthenticationFlowCallback {
 
             Claims claims = validateJwt(loginToken, publicKey, clientId);
 
+            // DEBUG: Log all claims to diagnose jti vs sub issue
+            LOG.infof("JWT claims - getSubject(): '%s', getId(): '%s', getIssuer(): '%s'",
+                    claims.getSubject(), claims.getId(), claims.getIssuer());
+            LOG.infof("JWT raw claims map: %s", claims);
+
             String issuer = claims.getIssuer();
             String subject = claims.getSubject();
 
@@ -114,6 +119,7 @@ public class LoginTokenAuthenticator implements AuthenticationFlowCallback {
             }
 
             String externalUserId = claims.getSubject();
+            LOG.infof("External user ID from claims.getSubject(): '%s'", externalUserId);
             String idpAlias = identityProviderModel.getAlias();
 
             FederatedIdentityModel federatedIdentityModel = new FederatedIdentityModel(

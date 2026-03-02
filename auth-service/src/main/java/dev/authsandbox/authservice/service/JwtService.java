@@ -43,11 +43,11 @@ public class JwtService {
      * @param acr    Authentication Context Class Reference level ("1" = password, "2" = biometric)
      */
     public String issueKeycloakAssertionToken(String userId, String acr) {
-        log.debug("Issuing Keycloak assertion token for userId '{}' acr='{}'", userId, acr);
+        log.info("Issuing Keycloak assertion token for userId='{}' acr='{}'", userId, acr);
         Instant now = Instant.now();
         Instant expiry = now.plusSeconds(keycloakProperties.assertionExpirationSeconds());
 
-        return Jwts.builder()
+        String jwt = Jwts.builder()
                 .header().add("kid", KID).and()
                 .id(UUID.randomUUID().toString())
                 .subject(userId)
@@ -59,6 +59,15 @@ public class JwtService {
                 .expiration(Date.from(expiry))
                 .signWith(jwtKeyPair.getPrivate(), Jwts.SIG.RS256)
                 .compact();
+        
+        // Decode to verify the sub claim
+        String[] parts = jwt.split("\\.");
+        if (parts.length >= 2) {
+            String payload = new String(java.util.Base64.getUrlDecoder().decode(parts[1]));
+            log.info("Generated JWT payload: {}", payload);
+        }
+        
+        return jwt;
     }
 
     /**

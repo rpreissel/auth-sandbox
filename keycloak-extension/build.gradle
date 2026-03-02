@@ -21,9 +21,9 @@ ext {
 
 dependencies {
     // JWT parsing - include all deps in the JAR
-    implementation "io.jsonwebtoken:jjwt-api:0.12.5"
-    implementation "io.jsonwebtoken:jjwt-impl:0.12.5"
-    implementation "io.jsonwebtoken:jjwt-jackson:0.12.5"
+    implementation "io.jsonwebtoken:jjwt-api:0.12.6"
+    implementation "io.jsonwebtoken:jjwt-impl:0.12.6"
+    implementation "io.jsonwebtoken:jjwt-jackson:0.12.6"
 
     // Keycloak SPI interfaces — provided at runtime by Keycloak itself
     compileOnly "org.keycloak:keycloak-server-spi:${keycloakVersion}"

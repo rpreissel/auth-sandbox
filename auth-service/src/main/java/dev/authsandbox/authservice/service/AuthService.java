@@ -103,9 +103,12 @@ public class AuthService {
 
         // The JWT sub must match the federated identity userId registered in Keycloak
         // (createUserWithFederatedIdentity uses userId, not deviceId, as the external subject).
-        String assertionToken = jwtService.issueKeycloakAssertionToken(device.getUserId(), ACR_BIOMETRIC);
-        log.debug("Issued Keycloak assertion token for device '{}' (userId '{}')",
-                device.getDeviceId(), device.getUserId());
+        String userId = device.getUserId();
+        log.info("About to issue Keycloak assertion token for device '{}', userId='{}', keycloakUserId='{}'",
+                device.getDeviceId(), userId, device.getKeycloakUserId());
+        String assertionToken = jwtService.issueKeycloakAssertionToken(userId, ACR_BIOMETRIC);
+        log.info("Issued Keycloak assertion token for device '{}' (userId '{}')",
+                device.getDeviceId(), userId);
 
         KeycloakTokenResponse kcTokens = keycloakAuthClient.authenticate(assertionToken);
         log.info("Authentication successful for device '{}'", device.getDeviceId());
