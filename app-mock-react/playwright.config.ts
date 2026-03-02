@@ -14,8 +14,9 @@ export default defineConfig({
   reporter: 'line',
   globalSetup: path.join(__dirname, 'global-setup.ts'),
   use: {
-    baseURL: 'http://localhost:5173',
+    baseURL: 'https://app-mock.localhost:8443',
     trace: 'on-first-retry',
+    ignoreHTTPSErrors: true,
   },
   projects: [
     {
@@ -26,6 +27,6 @@ export default defineConfig({
   webServer: {
     command: 'npm run dev',
     url: 'http://localhost:5173',
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: true,
   },
 });
