@@ -39,8 +39,15 @@ test.describe('Device Authorization Grant Flow', () => {
         // Click register button
         await page.getByRole('button', { name: /Gerät einrichten/i }).click();
         
-        // Wait for registration to complete - should show home screen
-        await expect(page.getByText('Mit Biometrie anmelden')).toBeVisible({ timeout: 15000 });
+        // Wait for registration to complete - should show home screen (without auto-login triggering)
+        // We need to wait for the biometric modal to appear, cancel it, then check the login button
+        await expect(page.getByText('Biometrische Authentifizierung')).toBeVisible({ timeout: 15000 });
+        
+        // Cancel the biometric prompt
+        await page.getByRole('button', { name: 'Abbrechen' }).click();
+        
+        // Now we should see the login button
+        await expect(page.getByRole('button', { name: /Mit Biometrie anmelden/i })).toBeVisible();
         
         // Verify device info is shown
         await page.getByText('📱 Geräteinformationen').click();
@@ -137,8 +144,12 @@ test.describe('Device Authorization Grant Flow', () => {
         await page.getByPlaceholder('Freischaltcode').fill(activationCode);
         await page.getByRole('button', { name: /Gerät einrichten/i }).click();
         
+        // Wait for biometric modal and cancel it (auto-login triggers modal)
+        await expect(page.getByText('Biometrische Authentifizierung')).toBeVisible({ timeout: 15000 });
+        await page.getByRole('button', { name: 'Abbrechen' }).click();
+        
         // Should show login button after registration
-        await expect(page.getByRole('button', { name: /Mit Biometrie anmelden/i })).toBeVisible({ timeout: 15000 });
+        await expect(page.getByRole('button', { name: /Mit Biometrie anmelden/i })).toBeVisible();
       } finally {
         await client.deleteRegistrationCode(codeId);
       }
@@ -168,13 +179,17 @@ test.describe('Device Authorization Grant Flow', () => {
         await page.getByPlaceholder('Freischaltcode').fill(activationCode);
         await page.getByRole('button', { name: /Gerät einrichten/i }).click();
         
-        await expect(page.getByRole('button', { name: /Mit Biometrie anmelden/i })).toBeVisible({ timeout: 15000 });
+        // Cancel auto-login biometric modal first
+        await expect(page.getByText('Biometrische Authentifizierung')).toBeVisible({ timeout: 15000 });
+        await page.getByRole('button', { name: 'Abbrechen' }).click();
+        
+        await expect(page.getByRole('button', { name: /Mit Biometrie anmelden/i })).toBeVisible();
         
         // Click login button
         await page.getByRole('button', { name: /Mit Biometrie anmelden/i }).click();
         
         // Modal should appear
-        await expect(page.getByText('Biometrie bestätigen')).toBeVisible({ timeout: 5000 });
+        await expect(page.getByText('Biometrische Authentifizierung')).toBeVisible({ timeout: 5000 });
       } finally {
         await client.deleteRegistrationCode(codeId);
       }
@@ -204,7 +219,11 @@ test.describe('Device Authorization Grant Flow', () => {
         await page.getByPlaceholder('Freischaltcode').fill(activationCode);
         await page.getByRole('button', { name: /Gerät einrichten/i }).click();
         
-        await expect(page.getByRole('button', { name: /Mit Biometrie anmelden/i })).toBeVisible({ timeout: 15000 });
+        // Cancel auto-login biometric modal first
+        await expect(page.getByText('Biometrische Authentifizierung')).toBeVisible({ timeout: 15000 });
+        await page.getByRole('button', { name: 'Abbrechen' }).click();
+        
+        await expect(page.getByRole('button', { name: /Mit Biometrie anmelden/i })).toBeVisible();
         await page.getByRole('button', { name: /Mit Biometrie anmelden/i }).click();
         
         // Check modal buttons
