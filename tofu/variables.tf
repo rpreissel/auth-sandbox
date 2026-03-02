@@ -58,6 +58,12 @@ variable "device_login_idp_alias" {
   default     = "device-login-idp"
 }
 
+variable "device_login_client_id" {
+  description = "Client ID of the device-login-client for trusted-client-ids config."
+  type        = string
+  default     = "device-login-client"
+}
+
 variable "jwt_issuer" {
   description = "Expected issuer (iss) in JWT tokens issued by auth-service (JWT_ISSUER)."
   type        = string

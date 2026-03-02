@@ -253,12 +253,8 @@ public class LoginTokenAuthenticator implements AuthenticationFlowCallback {
     }
 
     private Claims validateJwt(String token, PublicKey publicKey, String expectedAud) {
-        String expectedIss = session.getContext().getRealm().getName();
-        
         return Jwts.parser()
                 .verifyWith(publicKey)
-                .requireIssuer(expectedIss)
-                .requireAudience(expectedAud)
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();
