@@ -41,7 +41,10 @@ export default function App() {
     // skip the login prompt and redirect straight back with a code.
     setState({ phase: 'redirecting' });
     buildAuthUrl()
-      .then(url => { window.location.href = url; })
+      .then(url => {
+        // Brief delay to allow UI to show redirecting state before navigation
+        setTimeout(() => { window.location.href = url; }, 100);
+      })
       .catch((err: unknown) => setState({ phase: 'error', message: (err as Error).message }));
   }, []);
 
