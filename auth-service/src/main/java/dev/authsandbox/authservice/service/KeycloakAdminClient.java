@@ -199,6 +199,13 @@ public class KeycloakAdminClient {
         return (String) response.get("access_token");
     }
 
+    /**
+     * Creates a Keycloak user with the given userId as username.
+     * Idempotent: if the user already exists (Keycloak returns 400 or 409),
+     * the existing user's ID is looked up and returned instead of failing.
+     *
+     * @return the Keycloak user ID (UUID string), whether newly created or pre-existing
+     */
     private String createUser(String adminToken, String userId, String displayName) {
         var userRepresentation = new java.util.HashMap<String, Object>();
         userRepresentation.put("username", userId);
@@ -222,21 +229,24 @@ public class KeycloakAdminClient {
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(userRepresentation)
                 .retrieve()
-                .onStatus(status -> !status.is2xxSuccessful(), (req, resp) -> {
+                .onStatus(status -> status.value() == 400 || status.value() == 409, (req, resp) -> {
+                    // Keycloak returns 400 (or 409) when the username already exists.
+                    // Log and swallow — fall back to lookup below.
+                    log.warn("Keycloak user already exists for userId='{}' (HTTP {}); falling back to lookup",
+                            userId, resp.getStatusCode().value());
+                })
+                .onStatus(status -> !status.is2xxSuccessful() && status.value() != 400 && status.value() != 409, (req, resp) -> {
                     throw new KeycloakUpstreamException(
-                            "Failed to create Keycloak user: " + resp.getStatusCode());
+                            "Failed to create Keycloak user '" + userId + "': " + resp.getStatusCode());
                 })
                 .toBodilessEntity();
 
-        // Keycloak returns 201 Created with Location: .../users/{keycloakUserId}
-        var location = response.getHeaders().getLocation();
-        if (location == null) {
-            throw new KeycloakUpstreamException("No Location header after Keycloak user creation");
-        }
-        String path = location.getPath();
-        String keycloakUserId = path.substring(path.lastIndexOf('/') + 1);
-        log.debug("Created Keycloak user with id '{}'", keycloakUserId);
-        return keycloakUserId;
+        // Always look up by username — works whether user was just created (201)
+        // or already existed (400/409 conflict swallowed above).
+        // This is simpler and more reliable than parsing the Location header.
+        return getUserIdByUsername(userId)
+                .orElseThrow(() -> new KeycloakUpstreamException(
+                        "Keycloak user not found after creation for userId='" + userId + "'"));
     }
 
     private void linkFederatedIdentity(String adminToken, String keycloakUserId, String subject, String idpAlias) {
