@@ -150,8 +150,8 @@ resource "keycloak_openid_client" "device_login_client" {
   }
 
   extra_config = {
-    "jwtAuthorizationGrant"                = "true"
-    "allowedIdentityProvidersForJwtGrant"  = var.device_login_idp_alias
+    "use.jwks_url" = "true"
+    "jwks_url"     = var.device_login_jwks_url
   }
 }
 

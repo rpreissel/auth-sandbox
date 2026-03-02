@@ -20,14 +20,14 @@ services:
       start_period: 5s
 
   keycloak:
-    image: quay.io/keycloak/keycloak:26.5
+    image: quay.io/keycloak/keycloak:26.2
     restart: unless-stopped
     command:
       - start-dev
       - --proxy-headers=xforwarded
       - --hostname=https://keycloak.localhost:8443
       - --hostname-strict=false
-      - --features=jwt-authorization-grant,par,step-up-authentication
+      - --features=par,step-up-authentication
     env_file: .env
     environment:
       KC_DB: postgres

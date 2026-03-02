@@ -6,7 +6,9 @@ import org.keycloak.authentication.AuthenticationFlowCallbackFactory;
 import org.keycloak.models.AuthenticationExecutionModel;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionFactory;
+import org.keycloak.provider.ProviderConfigProperty;
 import java.util.List;
+import java.util.ArrayList;
 
 public class LoginTokenAuthenticatorFactory implements AuthenticationFlowCallbackFactory {
 
@@ -29,7 +31,7 @@ public class LoginTokenAuthenticatorFactory implements AuthenticationFlowCallbac
 
     @Override
     public boolean isConfigurable() {
-        return false;
+        return true;
     }
 
     @Override
@@ -52,8 +54,17 @@ public class LoginTokenAuthenticatorFactory implements AuthenticationFlowCallbac
     }
 
     @Override
-    public List<org.keycloak.provider.ProviderConfigProperty> getConfigProperties() {
-        return List.of();
+    public List<ProviderConfigProperty> getConfigProperties() {
+        List<ProviderConfigProperty> configProperties = new ArrayList<>();
+        
+        ProviderConfigProperty trustedClientIds = new ProviderConfigProperty();
+        trustedClientIds.setName("trusted-client-ids");
+        trustedClientIds.setLabel("Trusted Client IDs");
+        trustedClientIds.setType(ProviderConfigProperty.STRING_TYPE);
+        trustedClientIds.setHelpText("Comma-separated list of client IDs that are allowed to authenticate using login tokens");
+        
+        configProperties.add(trustedClientIds);
+        return configProperties;
     }
 
     @Override

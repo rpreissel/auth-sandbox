@@ -48,13 +48,6 @@ resource "keycloak_oidc_identity_provider" "device_login_idp" {
   jwks_url           = var.device_login_jwks_url
   issuer             = var.jwt_issuer
   validate_signature = true
-
-  extra_config = {
-    "enableJwtAuthorizationGrant"                      = "true"
-    "allowedJwtAuthorizationGrantClockSkew"           = "0"
-    "jwtAuthorizationGrantMaxAllowedAge"             = "300"
-    "jwtAuthorizationGrantAllowAssertionReuse"        = "false"
-  }
 }
 
 # ---------------------------------------------------------------------------
@@ -91,6 +84,15 @@ resource "keycloak_authentication_execution" "login_token_authenticator" {
   authenticator     = "login-token-authenticator"
   requirement       = "REQUIRED"
   depends_on        = [keycloak_authentication_subflow.login_token_subflow]
+}
+
+resource "keycloak_authentication_execution_config" "login_token_authenticator_config" {
+  realm_id     = keycloak_realm.auth_sandbox.id
+  execution_id = keycloak_authentication_execution.login_token_authenticator.id
+  alias        = "login token authenticator config"
+  config = {
+    "trusted-client-ids" = var.device_login_client_id
+  }
 }
 
 # ---------------------------------------------------------------------------

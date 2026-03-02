@@ -1,54 +1,54 @@
 package dev.authsandbox.keycloak;
 
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
+import io.jsonwebtoken.Jwts;
 import org.jboss.logging.Logger;
 import org.keycloak.authentication.AuthenticationFlowCallback;
 import org.keycloak.authentication.AuthenticationFlowContext;
 import org.keycloak.authentication.AuthenticationFlowError;
-import org.keycloak.authentication.Authenticator;
 import org.keycloak.authentication.authenticators.util.AcrStore;
 import org.keycloak.broker.provider.BrokeredIdentityContext;
-import org.keycloak.broker.provider.JWTAuthorizationGrantProvider;
-import org.keycloak.cache.AlternativeLookupProvider;
+import org.keycloak.models.AuthenticationExecutionModel;
 import org.keycloak.models.AuthenticationFlowModel;
+import org.keycloak.models.ClientModel;
 import org.keycloak.models.Constants;
 import org.keycloak.models.FederatedIdentityModel;
 import org.keycloak.models.IdentityProviderModel;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserModel;
-import org.keycloak.protocol.oidc.grants.JWTAuthorizationGrantValidator;
-import org.keycloak.services.resources.IdentityBrokerService;
 import org.keycloak.sessions.AuthenticationSessionModel;
 
-/**
- * Keycloak Authenticator SPI that validates the {@code login_token} extra parameter
- * passed in the Authorization Code Flow request.
- *
- * <p>The {@code login_token} is a short-lived JWT assertion issued by device-login.
- * The matching JWT Authorization Grant IdP is resolved dynamically from the {@code iss}
- * claim via {@link AlternativeLookupProvider#lookupIdentityProviderFromIssuer} —
- * no static config needed.
- *
- * <p>Validation logic mirrors {@code JWTAuthorizationGrantType} exactly:
- * issuer + subject + token-active + signature-algorithm are validated before delegating
- * the full JWT assertion check to {@link JWTAuthorizationGrantProvider#validateAuthorizationGrantAssertion}.
- *
- * <p>After successful validation the user is looked up via {@link FederatedIdentityModel}
- * using the {@code sub} claim from the brokered identity context.
- *
- * <p>Implements AuthenticationFlowCallback to properly set LoA like ConditionalLoaAuthenticator.
- */
+import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.security.Key;
+import java.security.PublicKey;
+import java.time.Duration;
+import java.util.Base64;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+
 public class LoginTokenAuthenticator implements AuthenticationFlowCallback {
 
     private static final Logger LOG = Logger.getLogger(LoginTokenAuthenticator.class);
 
-    /** Auth session note key injected by Keycloak for extra authorization request params. */
     private static final String LOGIN_TOKEN_NOTE = "client_request_param_login_token";
-    
+
     private final KeycloakSession session;
+    private final HttpClient httpClient;
+    private final Map<String, CachedJWKSet> jwksCache = new ConcurrentHashMap<>();
 
     public LoginTokenAuthenticator(KeycloakSession session) {
         this.session = session;
+        this.httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(10))
+                .build();
     }
 
     @Override
@@ -62,44 +62,47 @@ public class LoginTokenAuthenticator implements AuthenticationFlowCallback {
         }
 
         try {
-            // Build the validator — mirrors JWTAuthorizationGrantType.process().
-            // The client is taken from the current auth session so that audience
-            // validation can reference it if needed later; validateClient() is
-            // intentionally not called here (no client_secret exchange in this flow).
-            JWTAuthorizationGrantValidator authorizationGrantContext =
-                    JWTAuthorizationGrantValidator.createValidator(
-                            session,
-                            context.getAuthenticationSession().getClient(),
-                            loginToken,
-                            /* scope */ null);
+            ClientModel client = context.getAuthenticationSession().getClient();
+            String clientId = client.getClientId();
+            String clientJwksUrl = getClientJwksUrl(client);
 
-            // Validate mandatory claims (iss, sub).
-            authorizationGrantContext.validateIssuer();
-            authorizationGrantContext.validateSubject();
-
-            // Validate that the token was issued for the requesting client (azp claim).
-            // This prevents a login_token issued for client A from being used by client B,
-            // even if client B shares the same authentication flow.
-            // Keycloak maps the JWT "azp" claim to JsonWebToken.issuedFor — not to otherClaims.
-            String requestingClientId = context.getAuthenticationSession().getClient().getClientId();
-            String tokenAzp = authorizationGrantContext.getJWT().getIssuedFor();
-            if (tokenAzp == null || !tokenAzp.equals(requestingClientId)) {
-                LOG.warnf("login_token azp='%s' does not match requesting client '%s'",
-                        tokenAzp, requestingClientId);
+            if (clientJwksUrl == null || clientJwksUrl.isBlank()) {
+                LOG.warnf("Client '%s' has no jwks_url configured", clientId);
                 context.failure(AuthenticationFlowError.INVALID_CREDENTIALS);
                 return;
             }
 
-            // Resolve the IdP from the issuer claim — same call as JWTAuthorizationGrantType.
-            String jwtIssuer = authorizationGrantContext.getIssuer();
-            LOG.debugf("login_token issuer: '%s'", jwtIssuer);
-            AlternativeLookupProvider lookupProvider =
-                    session.getProvider(AlternativeLookupProvider.class);
-            IdentityProviderModel identityProviderModel =
-                    lookupProvider.lookupIdentityProviderFromIssuer(session, jwtIssuer);
+            String trustedClientIdsConfig = getTrustedClientIds(context);
+            if (!isTrustedClient(clientId, trustedClientIdsConfig)) {
+                LOG.warnf("Client '%s' is not in trusted client IDs list", clientId);
+                context.failure(AuthenticationFlowError.INVALID_CREDENTIALS);
+                return;
+            }
+
+            PublicKey publicKey = getPublicKey(clientId, clientJwksUrl);
+
+            Claims claims = validateJwt(loginToken, publicKey, clientId);
+
+            String issuer = claims.getIssuer();
+            String subject = claims.getSubject();
+
+            if (issuer == null || issuer.isBlank()) {
+                LOG.warn("login_token has no issuer claim");
+                context.failure(AuthenticationFlowError.INVALID_CREDENTIALS);
+                return;
+            }
+
+            if (subject == null || subject.isBlank()) {
+                LOG.warn("login_token has no subject claim");
+                context.failure(AuthenticationFlowError.INVALID_CREDENTIALS);
+                return;
+            }
+
+            RealmModel realm = session.getContext().getRealm();
+            IdentityProviderModel identityProviderModel = findIdpByIssuer(realm, issuer);
 
             if (identityProviderModel == null) {
-                LOG.warnf("No IdP found for issuer '%s'", jwtIssuer);
+                LOG.warnf("No IdP found for issuer '%s'", issuer);
                 context.failure(AuthenticationFlowError.INVALID_CREDENTIALS);
                 return;
             }
@@ -110,47 +113,11 @@ public class LoginTokenAuthenticator implements AuthenticationFlowCallback {
                 return;
             }
 
-            // Get the typed JWTAuthorizationGrantProvider — same call as JWTAuthorizationGrantType.
-            @SuppressWarnings("rawtypes")
-            JWTAuthorizationGrantProvider jwtAuthorizationGrantProvider =
-                    IdentityBrokerService.getIdentityProvider(
-                            session, identityProviderModel, JWTAuthorizationGrantProvider.class);
-
-            if (jwtAuthorizationGrantProvider == null) {
-                LOG.errorf("IdP '%s' is not configured for JWT Authorization Grant",
-                        identityProviderModel.getAlias());
-                context.failure(AuthenticationFlowError.INVALID_CREDENTIALS);
-                return;
-            }
-
-            // Validate token lifetime and signature algorithm.
-            authorizationGrantContext.validateTokenActive(
-                    jwtAuthorizationGrantProvider.getAllowedClockSkew(),
-                    jwtAuthorizationGrantProvider.getMaxAllowedExpiration(),
-                    jwtAuthorizationGrantProvider.isAssertionReuseAllowed());
-
-            authorizationGrantContext.validateSignatureAlgorithm(
-                    jwtAuthorizationGrantProvider.getAssertionSignatureAlg());
-
-            // Delegate full JWT assertion validation to the IdP.
-            LOG.debugf("Calling validateAuthorizationGrantAssertion for idp '%s'", identityProviderModel.getAlias());
-            BrokeredIdentityContext brokeredCtx =
-                    jwtAuthorizationGrantProvider.validateAuthorizationGrantAssertion(
-                            authorizationGrantContext);
-            LOG.debugf("validateAuthorizationGrantAssertion returned: %s", brokeredCtx);
-
-            if (brokeredCtx == null) {
-                LOG.warn("login_token validation returned null BrokeredIdentityContext");
-                context.failure(AuthenticationFlowError.INVALID_CREDENTIALS);
-                return;
-            }
-
-            // Look up the local user via the federated identity link.
-            String externalUserId = brokeredCtx.getId();
-            String idpAlias = brokeredCtx.getIdpConfig().getAlias();
+            String externalUserId = claims.getId();
+            String idpAlias = identityProviderModel.getAlias();
 
             FederatedIdentityModel federatedIdentityModel = new FederatedIdentityModel(
-                    idpAlias, externalUserId, brokeredCtx.getUsername(), brokeredCtx.getToken());
+                    idpAlias, externalUserId, claims.getSubject(), null);
 
             UserModel user = session.users()
                     .getUserByFederatedIdentity(context.getRealm(), federatedIdentityModel);
@@ -172,19 +139,133 @@ public class LoginTokenAuthenticator implements AuthenticationFlowCallback {
             context.setUser(user);
             context.success();
 
+        } catch (JwtException e) {
+            LOG.warnf(e, "login_token JWT validation failed");
+            context.failure(AuthenticationFlowError.INVALID_CREDENTIALS);
         } catch (Exception e) {
             LOG.warnf(e, "login_token validation failed");
             context.failure(AuthenticationFlowError.INVALID_CREDENTIALS);
         }
     }
 
-    // -----------------------------------------------------------------------
-    // Authenticator lifecycle — no form, no user pre-requisite
-    // -----------------------------------------------------------------------
+    private IdentityProviderModel findIdpByIssuer(RealmModel realm, String issuer) {
+        var identityProviders = realm.getIdentityProvidersStream().toList();
+        for (IdentityProviderModel idp : identityProviders) {
+            String idpIssuer = idp.getConfig().get("issuer");
+            if (issuer.equals(idpIssuer)) {
+                return idp;
+            }
+        }
+        return null;
+    }
+
+    private String getClientJwksUrl(ClientModel client) {
+        return client.getAttribute("jwks_url");
+    }
+
+    private String getTrustedClientIds(AuthenticationFlowContext context) {
+        var config = context.getAuthenticatorConfig();
+        if (config == null) {
+            return null;
+        }
+        return config.getConfig().get("trusted-client-ids");
+    }
+
+    private boolean isTrustedClient(String clientId, String trustedClientIdsConfig) {
+        if (trustedClientIdsConfig == null || trustedClientIdsConfig.isBlank()) {
+            return true;
+        }
+        Set<String> trustedIds = Set.of(trustedClientIdsConfig.split(","));
+        return trustedIds.contains(clientId.trim());
+    }
+
+    private PublicKey getPublicKey(String clientId, String jwksUrl) throws Exception {
+        CachedJWKSet cached = jwksCache.get(clientId);
+        if (cached != null && !cached.isExpired()) {
+            return cached.getPublicKey();
+        }
+
+        String jwksJson = fetchJwks(jwksUrl);
+        PublicKey publicKey = parseJwk(jwksJson);
+
+        jwksCache.put(clientId, new CachedJWKSet(publicKey, Duration.ofMinutes(15)));
+        return publicKey;
+    }
+
+    private String fetchJwks(String jwksUrl) throws IOException, InterruptedException {
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(jwksUrl))
+                .timeout(Duration.ofSeconds(10))
+                .GET()
+                .build();
+
+        HttpResponse<String> response = httpClient.send(request,
+                HttpResponse.BodyHandlers.ofString());
+
+        if (response.statusCode() != 200) {
+            throw new IOException("Failed to fetch JWKS: " + response.statusCode());
+        }
+
+        return response.body();
+    }
+
+    @SuppressWarnings("unchecked")
+    private PublicKey parseJwk(String jwksJson) {
+        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        Map<String, Object> jwks;
+        try {
+            jwks = mapper.readValue(jwksJson, Map.class);
+        } catch (Exception e) {
+            throw new JwtException("Failed to parse JWKS JSON", e);
+        }
+
+        List<Map<String, Object>> keys = (List<Map<String, Object>>) jwks.get("keys");
+        if (keys == null || keys.isEmpty()) {
+            throw new JwtException("No keys found in JWKS");
+        }
+
+        for (Map<String, Object> key : keys) {
+            String kty = (String) key.get("kty");
+            if ("RSA".equals(kty)) {
+                String nStr = (String) key.get("n");
+                String eStr = (String) key.get("e");
+                if (nStr != null && eStr != null) {
+                    byte[] nBytes = Base64.getUrlDecoder().decode(nStr);
+                    byte[] eBytes = Base64.getUrlDecoder().decode(eStr);
+
+                    java.math.BigInteger n = new java.math.BigInteger(1, nBytes);
+                    java.math.BigInteger e = new java.math.BigInteger(1, eBytes);
+
+                    java.security.spec.RSAPublicKeySpec spec =
+                            new java.security.spec.RSAPublicKeySpec(n, e);
+                    try {
+                        java.security.KeyFactory keyFactory =
+                                java.security.KeyFactory.getInstance("RSA");
+                        return keyFactory.generatePublic(spec);
+                    } catch (Exception ex) {
+                        LOG.warnf(ex, "Failed to parse RSA public key");
+                    }
+                }
+            }
+        }
+
+        throw new JwtException("No usable RSA key found in JWKS");
+    }
+
+    private Claims validateJwt(String token, PublicKey publicKey, String expectedAud) {
+        String expectedIss = session.getContext().getRealm().getName();
+        
+        return Jwts.parser()
+                .verifyWith(publicKey)
+                .requireIssuer(expectedIss)
+                .requireAudience(expectedAud)
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+    }
 
     @Override
     public void action(AuthenticationFlowContext context) {
-        // This authenticator never renders a form — action is not used.
     }
 
     @Override
@@ -199,30 +280,21 @@ public class LoginTokenAuthenticator implements AuthenticationFlowCallback {
 
     @Override
     public void setRequiredActions(KeycloakSession session, RealmModel realm, UserModel user) {
-        // no-op
     }
 
     @Override
     public void close() {
-        // no-op
     }
-
-    // -----------------------------------------------------------------------
-    // AuthenticationFlowCallback - set LoA like ConditionalLoaAuthenticator
-    // -----------------------------------------------------------------------
 
     @Override
     public void onParentFlowSuccess(AuthenticationFlowContext context) {
         AuthenticationSessionModel authSession = context.getAuthenticationSession();
         AcrStore acrStore = new AcrStore(session, authSession);
 
-        // Get LoA from the acr claim in the login token (default to 2 for biometric/device)
         int newLoa = 2;
         
-        // Set the level - same as ConditionalLoaAuthenticator.onParentFlowSuccess
         acrStore.setLevelAuthenticated(newLoa);
         
-        // Ensure LOA_MAP is copied to user session for future SSO
         String loaMap = authSession.getAuthNote(Constants.LOA_MAP);
         LOG.infof("onParentFlowSuccess: LOA_MAP=%s", loaMap);
         if (loaMap != null) {
@@ -239,5 +311,23 @@ public class LoginTokenAuthenticator implements AuthenticationFlowCallback {
         LOG.infof("Updating authenticated levels in authSession '%s' to user session note for future authentications: %s", 
             authSession.getParentSession().getId(), authSession.getAuthNote(Constants.LOA_MAP));
         authSession.setUserSessionNote(Constants.LOA_MAP, authSession.getAuthNote(Constants.LOA_MAP));
+    }
+
+    private static class CachedJWKSet {
+        private final PublicKey publicKey;
+        private final long expiresAt;
+
+        public CachedJWKSet(PublicKey publicKey, Duration ttl) {
+            this.publicKey = publicKey;
+            this.expiresAt = System.currentTimeMillis() + ttl.toMillis();
+        }
+
+        public PublicKey getPublicKey() {
+            return publicKey;
+        }
+
+        public boolean isExpired() {
+            return System.currentTimeMillis() > expiresAt;
+        }
     }
 }

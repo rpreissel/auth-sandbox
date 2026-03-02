@@ -16,10 +16,15 @@ repositories {
 }
 
 ext {
-    keycloakVersion = '26.5.0'
+    keycloakVersion = '26.2.0'
 }
 
 dependencies {
+    // JWT parsing
+    implementation "io.jsonwebtoken:jjwt-api:0.12.5"
+    runtimeOnly "io.jsonwebtoken:jjwt-impl:0.12.5"
+    runtimeOnly "io.jsonwebtoken:jjwt-jackson:0.12.5"
+
     // Keycloak SPI interfaces — provided at runtime by Keycloak itself
     compileOnly "org.keycloak:keycloak-server-spi:${keycloakVersion}"
     compileOnly "org.keycloak:keycloak-server-spi-private:${keycloakVersion}"
