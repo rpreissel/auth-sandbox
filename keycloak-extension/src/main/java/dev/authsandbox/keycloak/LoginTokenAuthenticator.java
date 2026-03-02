@@ -113,11 +113,11 @@ public class LoginTokenAuthenticator implements AuthenticationFlowCallback {
                 return;
             }
 
-            String externalUserId = claims.getId();
+            String externalUserId = claims.getSubject();
             String idpAlias = identityProviderModel.getAlias();
 
             FederatedIdentityModel federatedIdentityModel = new FederatedIdentityModel(
-                    idpAlias, externalUserId, claims.getSubject(), null);
+                    idpAlias, externalUserId, externalUserId, null);
 
             UserModel user = session.users()
                     .getUserByFederatedIdentity(context.getRealm(), federatedIdentityModel);
