@@ -54,6 +54,8 @@ public class DeviceService {
 
         // --- 6. Resolve the Keycloak user ----------------------------------------
         // Look up by username; if the user was deleted since provisioning, create it.
+        // Always ensure the device-login IdP federated identity link exists — even if
+        // the user was pre-provisioned (created by AdminService) without it.
         String keycloakUserId = keycloakAdminClient.getUserIdByUsername(request.userId())
                 .orElseGet(() -> {
                     log.warn("Keycloak user for userId '{}' not found at device-registration time; creating now.",
@@ -61,6 +63,7 @@ public class DeviceService {
                     return keycloakAdminClient.createUserWithFederatedIdentity(
                             request.userId(), regCode.getName());
                 });
+        keycloakAdminClient.ensureDeviceLoginFederatedIdentityLink(request.userId());
 
         // --- 7. Persist the device ---------------------------------------------
         Device device = Device.builder()

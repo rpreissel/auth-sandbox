@@ -111,6 +111,30 @@ public class KeycloakAdminClient {
     }
 
     /**
+     * Ensures the given user has a federated identity link to the device-login IdP.
+     * If the link already exists, this is a no-op. If it doesn't exist, the link
+     * is created using the username as the IdP subject (matching the device JWT sub).
+     *
+     * @param username the Keycloak username (equals the userId)
+     */
+    public void ensureDeviceLoginFederatedIdentityLink(String username) {
+        String adminToken = getAdminToken();
+        String keycloakUserId = getUserIdByUsername(username)
+                .orElseThrow(() -> new KeycloakUpstreamException(
+                        "Cannot link device-login-idp: no Keycloak user found for username '" + username + "'"));
+
+        String idpAlias = adminProperties.idpAlias();
+
+        if (hasFederatedIdentityLink(adminToken, keycloakUserId, idpAlias)) {
+            log.debug("User '{}' already has '{}' federated identity link", username, idpAlias);
+            return;
+        }
+
+        linkFederatedIdentity(adminToken, keycloakUserId, username, idpAlias);
+        log.info("Created '{}' federated identity link for user '{}'", idpAlias, username);
+    }
+
+    /**
      * Ensures the given user has a federated identity link to the sso-proxy-idp.
      * If the link already exists, this is a no-op. If it doesn't exist, the link
      * is created using the username as the IdP subject (matching sso-proxy-idp

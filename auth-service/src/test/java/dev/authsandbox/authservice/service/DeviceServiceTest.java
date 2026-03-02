@@ -56,9 +56,36 @@ class DeviceServiceTest {
         // The pre-created Keycloak user must be reused — no new user should be created.
         verify(keycloakAdminClient, never()).createUserWithFederatedIdentity(any(), any());
 
+        // The device-login federated identity must always be ensured — this is the
+        // fix for: Keycloak reports "No user found for federated identity" when a
+        // pre-provisioned user (created by AdminService) registers a device.
+        verify(keycloakAdminClient).ensureDeviceLoginFederatedIdentityLink("alice");
+
         ArgumentCaptor<RegistrationCode> captor = ArgumentCaptor.forClass(RegistrationCode.class);
         verify(registrationCodeRepository).save(captor.capture());
         assertThat(captor.getValue().getUseCount()).isEqualTo(1);
+    }
+
+    @Test
+    void registerDevice_ensuresFederatedIdentityLink_whenUserPreExistsInKeycloak() {
+        // Regression test for: Biometric login fails with HTTP 500 because Keycloak
+        // reports "No user found for federated identity sub='...' idp=device-login-idp".
+        // Root cause: pre-provisioned users (created by AdminService) are in Keycloak
+        // but have no federated identity link for device-login-idp. Device registration
+        // must always call ensureDeviceLoginFederatedIdentityLink regardless of whether
+        // the user already existed.
+        RegistrationCode regCode = activeCode("pre-existing-user", "Pre Existing", "secret", 0);
+        when(registrationCodeRepository.findByUserId("pre-existing-user")).thenReturn(Optional.of(regCode));
+        when(deviceRepository.existsByDeviceId("dev-pe")).thenReturn(false);
+        when(keycloakAdminClient.getUserIdByUsername("pre-existing-user")).thenReturn(Optional.of("kc-uuid-pe"));
+        when(deviceRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(registrationCodeRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        deviceService.registerDevice(
+                new RegisterDeviceRequest("dev-pe", "pre-existing-user", "Pre Existing", "secret", "pubkey"));
+
+        verify(keycloakAdminClient, never()).createUserWithFederatedIdentity(any(), any());
+        verify(keycloakAdminClient).ensureDeviceLoginFederatedIdentityLink("pre-existing-user");
     }
 
     @Test
@@ -75,6 +102,7 @@ class DeviceServiceTest {
                 new RegisterDeviceRequest("dev-bob-4", "bob", "Bob", plainCode, "pubkey"));
 
         verify(keycloakAdminClient, never()).createUserWithFederatedIdentity(any(), any());
+        verify(keycloakAdminClient).ensureDeviceLoginFederatedIdentityLink("bob");
 
         ArgumentCaptor<RegistrationCode> captor = ArgumentCaptor.forClass(RegistrationCode.class);
         verify(registrationCodeRepository).save(captor.capture());
@@ -84,7 +112,9 @@ class DeviceServiceTest {
     @Test
     void registerDevice_createsKeycloakUser_whenUserWasDeletedFromKeycloak() {
         // The Keycloak user may have been manually deleted since provisioning.
-        // The service must recreate it on demand.
+        // The service must recreate it on demand (createUserWithFederatedIdentity already
+        // sets up the federated identity link, but ensureDeviceLoginFederatedIdentityLink
+        // is still called as a safety net afterwards).
         RegistrationCode regCode = activeCode("deleted-user", "Deleted User", "secret", 0);
         when(registrationCodeRepository.findByUserId("deleted-user")).thenReturn(Optional.of(regCode));
         when(deviceRepository.existsByDeviceId("dev-deleted")).thenReturn(false);
@@ -99,6 +129,7 @@ class DeviceServiceTest {
 
         assertThat(response.deviceId()).isEqualTo("dev-deleted");
         verify(keycloakAdminClient).createUserWithFederatedIdentity("deleted-user", "Deleted User");
+        verify(keycloakAdminClient).ensureDeviceLoginFederatedIdentityLink("deleted-user");
     }
 
     // -----------------------------------------------------------------------
