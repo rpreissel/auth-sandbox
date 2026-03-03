@@ -81,7 +81,8 @@ cd target-app-react && npm test
 cd target-app-react && npm run test:ui
 
 # auth-service
-cd auth-service && ./gradlew bootJar          # build JAR
+cd auth-service && ./gradlew bootJar          # build JAR locally (REQUIRED before Docker build)
+podman compose build auth-service              # build Docker image (uses pre-built JAR)
 cd auth-service && ./gradlew test             # run all tests
 cd auth-service && ./gradlew test --tests "dev.authsandbox.authservice.service.JwtServiceTest"
 
