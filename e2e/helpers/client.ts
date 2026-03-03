@@ -74,6 +74,11 @@ export interface AdminDeviceResponse {
   createdAt: string;
 }
 
+export interface CleanupResult {
+  deleted: number;
+  skipped: number;
+}
+
 export interface ProblemDetail {
   title: string;
   detail: string;
@@ -226,6 +231,15 @@ export class AuthServiceClient {
     return request<unknown>(
       "DELETE",
       `${this.base}/api/v1/admin/devices/${id}`,
+      undefined,
+      { Authorization: this.adminAuth }
+    );
+  }
+
+  async cleanupExpiredCodes(): Promise<HttpResponse<CleanupResult>> {
+    return request<CleanupResult>(
+      "POST",
+      `${this.base}/api/v1/admin/registration-codes/cleanup`,
       undefined,
       { Authorization: this.adminAuth }
     );

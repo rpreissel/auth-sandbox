@@ -408,4 +408,9 @@ describe("Admin registration code: edge cases", () => {
     );
     expect(res.status).toBe(400);
   });
+
+  it("POST /admin/registration-codes/cleanup without Authorization → 401", async () => {
+    const res = await rawRequest("POST", "/api/v1/admin/registration-codes/cleanup");
+    expect(res.status).toBe(401);
+  });
 });
