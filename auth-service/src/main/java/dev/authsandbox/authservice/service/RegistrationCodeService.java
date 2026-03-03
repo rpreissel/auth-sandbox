@@ -20,7 +20,7 @@ import java.util.UUID;
 @Slf4j
 public class RegistrationCodeService {
 
-    static final int DEFAULT_VALID_FOR_HOURS = 24;
+    static final int DEFAULT_VALID_FOR_DAYS = 90;
 
     private final RegistrationCodeRepository registrationCodeRepository;
     private final KeycloakAdminClient keycloakAdminClient;
@@ -44,8 +44,8 @@ public class RegistrationCodeService {
             log.debug("Keycloak user already exists for userId='{}', skipping creation", request.userId());
         }
 
-        int validForHours = request.validForHours() != null ? request.validForHours() : DEFAULT_VALID_FOR_HOURS;
-        OffsetDateTime expiresAt = OffsetDateTime.now().plusHours(validForHours);
+        int validForDays = request.validForDays() != null ? request.validForDays() : DEFAULT_VALID_FOR_DAYS;
+        OffsetDateTime expiresAt = OffsetDateTime.now().plusDays(validForDays);
 
         RegistrationCode entity = RegistrationCode.builder()
                 .userId(request.userId())

@@ -18,9 +18,9 @@ public record CreateRegistrationCodeRequest(
         String activationCode,
 
         /**
-         * How many hours the code should remain valid.
-         * Must be a positive integer. Defaults to 24 if omitted (null).
+         * How many days the code should remain valid.
+         * Must be a positive integer. Defaults to 90 if omitted (null).
          */
-        @Positive(message = "validForHours must be a positive number")
-        Integer validForHours
+        @Positive(message = "validForDays must be a positive number")
+        Integer validForDays
 ) {}

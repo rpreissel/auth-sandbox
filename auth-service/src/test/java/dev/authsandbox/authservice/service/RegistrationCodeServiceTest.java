@@ -66,7 +66,7 @@ class RegistrationCodeServiceTest {
     }
 
     @Test
-    void createRegistrationCode_defaultValidityIs24Hours() {
+    void createRegistrationCode_defaultValidityIs90Days() {
         when(registrationCodeRepository.findByUserId("alice")).thenReturn(Optional.empty());
         when(keycloakAdminClient.getUserIdByUsername("alice")).thenReturn(Optional.empty());
         when(keycloakAdminClient.createUserWithFederatedIdentity("alice", "Alice")).thenReturn("kc-uuid-alice");
@@ -81,8 +81,8 @@ class RegistrationCodeServiceTest {
         verify(registrationCodeRepository).save(captor.capture());
 
         OffsetDateTime expiresAt = captor.getValue().getExpiresAt();
-        assertThat(expiresAt).isAfterOrEqualTo(before.plusHours(RegistrationCodeService.DEFAULT_VALID_FOR_HOURS));
-        assertThat(expiresAt).isBeforeOrEqualTo(after.plusHours(RegistrationCodeService.DEFAULT_VALID_FOR_HOURS)
+        assertThat(expiresAt).isAfterOrEqualTo(before.plusDays(RegistrationCodeService.DEFAULT_VALID_FOR_DAYS));
+        assertThat(expiresAt).isBeforeOrEqualTo(after.plusDays(RegistrationCodeService.DEFAULT_VALID_FOR_DAYS)
                 .plus(1, ChronoUnit.SECONDS));
     }
 
@@ -95,13 +95,13 @@ class RegistrationCodeServiceTest {
 
         OffsetDateTime before = OffsetDateTime.now();
         registrationCodeService.createRegistrationCode(
-                new CreateRegistrationCodeRequest("bob", "Bob", "secret", 48));
+                new CreateRegistrationCodeRequest("bob", "Bob", "secret", 30));
 
         ArgumentCaptor<RegistrationCode> captor = ArgumentCaptor.forClass(RegistrationCode.class);
         verify(registrationCodeRepository).save(captor.capture());
 
         OffsetDateTime expiresAt = captor.getValue().getExpiresAt();
-        assertThat(expiresAt).isCloseTo(before.plusHours(48), within(5, ChronoUnit.SECONDS));
+        assertThat(expiresAt).isCloseTo(before.plusDays(30), within(5, ChronoUnit.SECONDS));
     }
 
     @Test
