@@ -3,6 +3,7 @@ package dev.authsandbox.authservice.controller;
 import dev.authsandbox.authservice.dto.AdminDeviceResponse;
 import dev.authsandbox.authservice.dto.AdminRegistrationCodeResponse;
 import dev.authsandbox.authservice.dto.CreateRegistrationCodeRequest;
+import dev.authsandbox.authservice.dto.CleanupResult;
 import dev.authsandbox.authservice.dto.SyncResult;
 import dev.authsandbox.authservice.service.RegistrationCodeService;
 import dev.authsandbox.authservice.service.DeviceManagementService;
@@ -43,6 +44,11 @@ public class AdminController {
     @PostMapping("/registration-codes/sync")
     public SyncResult syncRegistrationCodes() {
         return registrationCodeService.syncKeycloakUsers();
+    }
+
+    @PostMapping("/registration-codes/cleanup")
+    public CleanupResult cleanupExpiredCodes() {
+        return registrationCodeService.deleteExpiredCodes();
     }
 
     @DeleteMapping("/registration-codes/{id}")

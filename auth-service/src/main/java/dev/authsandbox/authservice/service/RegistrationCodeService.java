@@ -1,6 +1,7 @@
 package dev.authsandbox.authservice.service;
 
 import dev.authsandbox.authservice.dto.AdminRegistrationCodeResponse;
+import dev.authsandbox.authservice.dto.CleanupResult;
 import dev.authsandbox.authservice.dto.CreateRegistrationCodeRequest;
 import dev.authsandbox.authservice.dto.SyncResult;
 import dev.authsandbox.authservice.entity.RegistrationCode;
@@ -117,5 +118,36 @@ public class RegistrationCodeService {
                 rc.getUseCount(),
                 rc.getCreatedAt()
         );
+    }
+
+    @Transactional
+    public CleanupResult deleteExpiredCodes() {
+        List<RegistrationCode> codes = registrationCodeRepository.findAll();
+        int deleted = 0;
+        int skipped = 0;
+
+        for (RegistrationCode code : codes) {
+            if (code.isExpired()) {
+                if (code.getUseCount() == 0) {
+                    try {
+                        keycloakAdminClient.deleteUserByUsername(code.getUserId());
+                        registrationCodeRepository.delete(code);
+                        deleted++;
+                        log.info("Deleted expired registration code id='{}' for userId='{}'", 
+                                code.getId(), code.getUserId());
+                    } catch (Exception ex) {
+                        log.warn("Failed to delete expired code for userId '{}': {}", 
+                                code.getUserId(), ex.getMessage());
+                    }
+                } else {
+                    skipped++;
+                    log.debug("Skipped expired code id='{}' for userId='{}' - has {} registered devices", 
+                            code.getId(), code.getUserId(), code.getUseCount());
+                }
+            }
+        }
+
+        log.info("Cleanup complete - deleted={}, skipped={}", deleted, skipped);
+        return new CleanupResult(deleted, skipped);
     }
 }

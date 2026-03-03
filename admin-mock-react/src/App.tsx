@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { Device, RegistrationCode, StatusKind, SyncResult } from './types';
+import type { Device, RegistrationCode, StatusKind, SyncResult, CleanupResult } from './types';
 import { api } from './services/api';
 import { ApiError } from '@auth-sandbox/utils';
 import { useActivityLog } from './hooks/useActivityLog';
@@ -126,6 +126,23 @@ export default function App() {
     }
   }
 
+  async function handleCleanupExpiredCodes() {
+    if (!creds) return;
+    if (!confirm('Delete all expired registration codes (and their Keycloak users)?')) return;
+    setStatus({ text: 'Cleaning up…', kind: 'pending' });
+    try {
+      const result: CleanupResult = await api.cleanupExpiredCodes(creds);
+      addEntry(
+        `Cleanup complete — deleted: ${result.deleted}, skipped (has devices): ${result.skipped}.`,
+        result.deleted > 0 ? 'ok' : 'info',
+      );
+      setStatus({ text: 'Authenticated', kind: 'success' });
+      await loadCodes();
+    } catch (err) {
+      handleApiError(err, 'Failed to cleanup expired codes');
+    }
+  }
+
   async function handleDeleteCode(id: string, userId: string) {
     if (!creds) return;
     setStatus({ text: 'Deleting…', kind: 'pending' });
@@ -198,6 +215,7 @@ export default function App() {
                 onDelete={(id, userId) => void handleDeleteCode(id, userId)}
                 onCreate={handleCreateCode}
                 onSync={handleSyncRegistrationCodes}
+                onCleanup={handleCleanupExpiredCodes}
                 count={codes.length}
               />
             ) : (

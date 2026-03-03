@@ -1,0 +1,21 @@
+{
+  "sessionID": "ses_35026f908ffedLMkBJTBjmKF3q",
+  "blocks": {
+    "goal": {
+      "value": "FIXED: Biometric login bug - JJWT version mismatch (0.12.5 vs 0.12.6) caused claims.getSubject() to return jti instead of sub",
+      "charLimit": 1000,
+      "lastModified": "2026-03-02T19:14:08.718Z"
+    },
+    "progress": {
+      "value": "✅ FIXED: Biometric login bug in commit 23d18fa\n- Root cause: JJWT version mismatch (0.12.5 vs 0.12.6) \n- Fix: Upgraded keycloak-extension to JJWT 0.12.6\n- Debug logging added to LoginTokenAuthenticator\n- All 61 E2E tests pass\n- Pushed to origin/main",
+      "charLimit": 2000,
+      "lastModified": "2026-03-02T19:14:19.778Z"
+    },
+    "context": {
+      "value": "Modified files:\n- AuthService.java:104-110 (added logging: userId, keycloakUserId)\n\nBug manifestation:\n- Keycloak sees sub='<UUID>' in JWT (e.g. 3c51afd0-344b-45ab-8b63-7940e889c5cd)\n- Should be sub='<plaintext-userId>' (e.g. 'e2e-user-1772478103382-1')\n- Error: \"No user found for federated identity\"\n\nFlow: AuthService.verifyChallenge() → device.getUserId() → jwtService.issueKeycloakAssertionToken(userId, ACR) → JWT sub=userId → Keycloak LoginTokenAuthenticator → federated_identity lookup by sub\n\nBeads: auth-sandbox-wmt (in_progress, not closed)",
+      "charLimit": 1500,
+      "lastModified": "2026-03-02T19:02:50.830Z"
+    }
+  },
+  "updatedAt": "2026-03-02T19:14:19.778Z"
+}

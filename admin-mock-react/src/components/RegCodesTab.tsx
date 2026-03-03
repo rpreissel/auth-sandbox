@@ -109,12 +109,14 @@ interface Props {
   onDelete: (id: string, userId: string) => void;
   onCreate: (userId: string, name: string, activationCode: string) => Promise<void>;
   onSync: () => Promise<void>;
+  onCleanup: () => Promise<void>;
   count: number;
 }
 
-export function RegCodesTab({ codes, onRefresh, onDelete, onCreate, onSync, count }: Props) {
+export function RegCodesTab({ codes, onRefresh, onDelete, onCreate, onSync, onCleanup, count }: Props) {
   const [showCreate, setShowCreate] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [cleaning, setCleaning] = useState(false);
 
   async function handleCreate(userId: string, name: string, activationCode: string) {
     await onCreate(userId, name, activationCode);
@@ -127,6 +129,15 @@ export function RegCodesTab({ codes, onRefresh, onDelete, onCreate, onSync, coun
       await onSync();
     } finally {
       setSyncing(false);
+    }
+  }
+
+  async function handleCleanup() {
+    setCleaning(true);
+    try {
+      await onCleanup();
+    } finally {
+      setCleaning(false);
     }
   }
 
@@ -154,6 +165,13 @@ export function RegCodesTab({ codes, onRefresh, onDelete, onCreate, onSync, coun
           disabled={syncing}
         >
           {syncing ? 'Syncing…' : '\u21C5 Sync Keycloak'}
+        </button>
+        <button
+          className="btn btn-warning btn-sm"
+          onClick={() => void handleCleanup()}
+          disabled={cleaning}
+        >
+          {cleaning ? 'Cleaning…' : '\u2715 Cleanup Expired'}
         </button>
         <span className="mono">{count} code{count !== 1 ? 's' : ''}</span>
       </div>

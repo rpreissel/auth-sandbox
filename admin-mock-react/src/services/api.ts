@@ -1,4 +1,4 @@
-import type { Device, RegistrationCode, SyncResult } from '../types';
+import type { Device, RegistrationCode, SyncResult, CleanupResult } from '../types';
 import { ApiError, handleApiResponse } from '@auth-sandbox/utils';
 
 interface Credentials {
@@ -55,6 +55,10 @@ export const api = {
 
   syncRegistrationCodes(creds: Credentials): Promise<SyncResult> {
     return apiFetch('POST', '/api/v1/admin/registration-codes/sync', creds);
+  },
+
+  cleanupExpiredCodes(creds: Credentials): Promise<CleanupResult> {
+    return apiFetch('POST', '/api/v1/admin/registration-codes/cleanup', creds);
   },
 
   getDevices(creds: Credentials): Promise<Device[]> {

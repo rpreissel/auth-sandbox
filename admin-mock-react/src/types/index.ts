@@ -33,3 +33,8 @@ export interface SyncResult {
   alreadySynced: number;
   failed: number;
 }
+
+export interface CleanupResult {
+  deleted: number;
+  skipped: number;
+}
