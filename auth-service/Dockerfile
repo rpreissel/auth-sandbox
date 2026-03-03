@@ -1,19 +1,12 @@
-# Build stage
-FROM gradle:8.12-jdk21-alpine AS builder
-WORKDIR /app
-COPY settings.gradle build.gradle ./
-# Cache dependencies
-RUN gradle dependencies --no-daemon || true
-COPY src ./src
-RUN gradle bootJar --no-daemon -x test
+# Build JAR locally first: cd auth-service && ../gradlew bootJar
+# Runtime stage only - expects build/libs/auth-service-*.jar in context
 
-# Runtime stage
 FROM eclipse-temurin:21-jre-alpine AS runtime
 WORKDIR /app
 
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
-COPY --from=builder /app/build/libs/*.jar app.jar
+COPY build/libs/*.jar app.jar
 
 RUN mkdir -p /etc/auth-service/keys && \
     chown -R appuser:appgroup /etc/auth-service /app
