@@ -94,6 +94,13 @@ cd e2e && npm test                            # run all suites
 cd e2e && npm test -- --reporter=verbose      # verbose output
 ```
 
+---
+
+## Development Rules
+
+- **Jedes neue Feature braucht einen E2E-Test** – Vor dem Commit prüfen ob E2E-Tests vorhanden sind.
+```
+
 LikeC4 diagrams: see `c4-spec/STYLE.md` for DSL conventions and CLI commands.
 
 ---
