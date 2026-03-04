@@ -11,7 +11,7 @@ http:// {
 
 # keycloak.localhost
 keycloak.localhost:443 {
-    tls internal
+    tls /etc/caddy/certs/keycloak.localhost+7.pem /etc/caddy/certs/keycloak.localhost+7-key.pem
 
     # Keycloak sends large OIDC response headers (cookies, PAR, etc.)
     handle /js/* {
@@ -30,7 +30,7 @@ keycloak.localhost:443 {
 
 # auth-service.localhost
 auth-service.localhost:443 {
-    tls internal
+    tls /etc/caddy/certs/keycloak.localhost+7.pem /etc/caddy/certs/keycloak.localhost+7-key.pem
 
     reverse_proxy auth-service:8083 {
         header_up X-Forwarded-Proto "https"
@@ -43,7 +43,7 @@ auth-service.localhost:443 {
 # /api/*        → auth-service (same-origin, no CORS)
 # /             → static SPA files
 app-mock.localhost:443 {
-    tls internal
+    tls /etc/caddy/certs/keycloak.localhost+7.pem /etc/caddy/certs/keycloak.localhost+7-key.pem
 
     handle /api/userinfo {
         rewrite * /realms/auth-sandbox/protocol/openid-connect/userinfo
@@ -70,7 +70,7 @@ app-mock.localhost:443 {
 # /api/* → auth-service (admin endpoints, Basic Auth forwarded)
 # /      → static files
 admin.localhost:443 {
-    tls internal
+    tls /etc/caddy/certs/keycloak.localhost+7.pem /etc/caddy/certs/keycloak.localhost+7-key.pem
 
     handle /api/* {
         reverse_proxy auth-service:8083 {
@@ -87,7 +87,7 @@ admin.localhost:443 {
 
 # home.localhost — developer start page
 home.localhost:443 {
-    tls internal
+    tls /etc/caddy/certs/keycloak.localhost+7.pem /etc/caddy/certs/keycloak.localhost+7-key.pem
 
     root * /srv/home
     file_server
@@ -95,7 +95,7 @@ home.localhost:443 {
 
 # sso-proxy.localhost — SSO browser transfer (served by auth-service)
 sso-proxy.localhost:443 {
-    tls internal
+    tls /etc/caddy/certs/keycloak.localhost+7.pem /etc/caddy/certs/keycloak.localhost+7-key.pem
 
     reverse_proxy auth-service:8083 {
         header_up X-Forwarded-Proto "https"
@@ -108,7 +108,7 @@ sso-proxy.localhost:443 {
 # /api/token    → Keycloak token endpoint (avoid CORS)
 # /             → static SPA files (SPA fallback for client-side routing)
 target-app.localhost:443 {
-    tls internal
+    tls /etc/caddy/certs/keycloak.localhost+7.pem /etc/caddy/certs/keycloak.localhost+7-key.pem
 
     handle /api/userinfo {
         rewrite * /realms/auth-sandbox/protocol/openid-connect/userinfo
@@ -135,7 +135,7 @@ target-app.localhost:443 {
 
 # cms.localhost — CMS Mock
 cms.localhost:443 {
-    tls internal
+    tls /etc/caddy/certs/keycloak.localhost+7.pem /etc/caddy/certs/keycloak.localhost+7-key.pem
 
     # /p/* — Auth-Gateway (Schutzlevel-Check + Redirect)
     handle /p/* {

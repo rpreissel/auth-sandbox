@@ -96,6 +96,7 @@ services:
       - "8443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./caddy_data/certs:/etc/caddy/certs:ro
       - ./app-mock-react/dist:/srv/app-mock:ro
       - ./admin-mock-react/dist:/srv/admin-mock:ro
       - ./home:/srv/home:ro

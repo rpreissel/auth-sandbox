@@ -7,8 +7,8 @@ resource "keycloak_realm" "auth_sandbox" {
 
   display_name = "Auth Sandbox"
 
-  # Default browser flow — step-up enables ACR-based LoA enforcement
-  browser_flow = "step-up-browser-flow"
+  # browser_flow is set via keycloak_realm_browser_flow_binding below,
+  # after the step-up-browser-flow has been created (avoids circular dependency)
 
   # Token lifetimes (sensible defaults for local dev)
   access_token_lifespan        = "5m"

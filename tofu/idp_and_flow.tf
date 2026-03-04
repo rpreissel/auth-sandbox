@@ -213,3 +213,42 @@ resource "keycloak_authentication_execution" "level2_otp" {
   depends_on        = [keycloak_authentication_execution_config.level2_condition_config]
 }
 
+# ---------------------------------------------------------------------------
+# Bind step-up-browser-flow as the realm's default browser flow.
+# Cannot be set on keycloak_realm directly because the flow doesn't exist yet
+# at realm-creation time (circular dependency). A null_resource with local-exec
+# patches the realm via the Keycloak Admin REST API after all flows are created.
+# ---------------------------------------------------------------------------
+resource "null_resource" "set_realm_browser_flow" {
+  depends_on = [
+    keycloak_authentication_flow.step_up_browser_flow,
+    keycloak_authentication_execution.step_up_browser_cookie,
+    keycloak_authentication_subflow.step_up_subflow_execution,
+    keycloak_authentication_subflow.level1_subflow,
+    keycloak_authentication_subflow.level2_subflow,
+    keycloak_authentication_execution.level2_otp,
+  ]
+
+  triggers = {
+    flow_alias = keycloak_authentication_flow.step_up_browser_flow.alias
+    realm_id   = keycloak_realm.auth_sandbox.id
+  }
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      TOKEN=$(curl -sk -X POST \
+        "${var.keycloak_url}/realms/master/protocol/openid-connect/token" \
+        -d "client_id=admin-cli" \
+        -d "username=${var.keycloak_admin_username}" \
+        -d "password=${var.keycloak_admin_password}" \
+        -d "grant_type=password" | jq -r '.access_token')
+
+      curl -sk -X PUT \
+        "${var.keycloak_url}/admin/realms/${var.realm_id}" \
+        -H "Authorization: Bearer $TOKEN" \
+        -H "Content-Type: application/json" \
+        -d '{"browserFlow": "${keycloak_authentication_flow.step_up_browser_flow.alias}"}'
+    EOT
+  }
+}
+
