@@ -17,6 +17,7 @@ import org.keycloak.models.FederatedIdentityModel;
 import org.keycloak.models.IdentityProviderModel;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
+import org.keycloak.models.SingleUseObjectProvider;
 import org.keycloak.models.UserModel;
 import org.keycloak.sessions.AuthenticationSessionModel;
 
@@ -82,6 +83,30 @@ public class LoginTokenAuthenticator implements AuthenticationFlowCallback {
             PublicKey publicKey = getPublicKey(clientId, clientJwksUrl);
 
             Claims claims = validateJwt(loginToken, publicKey, clientId);
+
+            String jti = claims.getId();
+            if (jti == null || jti.isBlank()) {
+                LOG.warn("login_token has no jti (JWT ID) claim - required for single-use validation");
+                context.failure(AuthenticationFlowError.INVALID_CREDENTIALS);
+                return;
+            }
+
+            long tokenExpiry = claims.getExpiration().getTime();
+            long currentTime = System.currentTimeMillis();
+            long ttlSeconds = Math.max(1, (tokenExpiry - currentTime) / 1000);
+
+            SingleUseObjectProvider singleUseProvider = session.getProvider(SingleUseObjectProvider.class);
+            if (singleUseProvider != null) {
+                boolean wasNotUsed = singleUseProvider.putIfAbsent("logintoken:" + jti, ttlSeconds);
+                if (!wasNotUsed) {
+                    LOG.warnf("login_token with jti '%s' has already been used", jti);
+                    context.failure(AuthenticationFlowError.INVALID_CREDENTIALS);
+                    return;
+                }
+                LOG.infof("login_token jti '%s' registered for single-use (ttl=%ds)", jti, ttlSeconds);
+            } else {
+                LOG.warn("SingleUseObjectProvider not available - single-use validation skipped");
+            }
 
             // DEBUG: Log all claims to diagnose jti vs sub issue
             LOG.infof("JWT claims - getSubject(): '%s', getId(): '%s', getIssuer(): '%s'",

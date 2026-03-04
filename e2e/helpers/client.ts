@@ -295,4 +295,18 @@ export class AuthServiceClient {
       `${this.base}/api/v1/auth/.well-known/jwks.json`
     );
   }
+
+  // --- SSO Transfer ------------------------------------------------------------
+
+  async initTransfer(
+    accessToken: string,
+    targetUrl: string
+  ): Promise<HttpResponse<{ transferUrl: string; expiresInSeconds: number } | ProblemDetail>> {
+    return request<{ transferUrl: string; expiresInSeconds: number } | ProblemDetail>(
+      "POST",
+      `${this.base}/api/v1/transfer/init`,
+      { accessToken, targetUrl },
+      { Authorization: `Bearer ${accessToken}` }
+    );
+  }
 }
