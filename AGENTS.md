@@ -98,6 +98,11 @@ cd e2e && npm test -- --reporter=verbose      # verbose output
 
 ## Development Rules
 
+- **IMMER ein Bead anlegen, bevor mit der Implementierung gestartet wird** – Kein Code schreiben, bevor kein Issue existiert:
+  ```bash
+  bd create "Kurztitel" --description="Was gemacht werden soll" -t feature|bug|task -p 0-4
+  bd update <id> --status in_progress
+  ```
 - **Jedes neue Feature braucht einen E2E-Test** – Vor dem Commit prüfen ob E2E-Tests vorhanden sind.
 ```
 
