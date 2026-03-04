@@ -85,3 +85,5 @@
 {"actor":"Rene Preissel","comment":null,"created_at":"2026-03-03T22:10:59Z","event_type":"closed","id":85,"issue_id":"auth-sandbox-5nw","new_value":"Docker Build funktioniert jetzt wieder, E2E Tests für Cleanup-Endpoint hinzugefügt","old_value":""}
 {"actor":"Rene Preissel","comment":null,"created_at":"2026-03-04T20:00:13Z","event_type":"created","id":86,"issue_id":"auth-sandbox-6od","new_value":"","old_value":""}
 {"actor":"Rene Preissel","comment":null,"created_at":"2026-03-04T20:02:47Z","event_type":"closed","id":87,"issue_id":"auth-sandbox-6od","new_value":"E2E-Test erstellt und erfolgreich durchlaufen","old_value":""}
+{"actor":"Rene Preissel","comment":null,"created_at":"2026-03-04T20:20:02Z","event_type":"created","id":88,"issue_id":"auth-sandbox-2lz","new_value":"","old_value":""}
+{"actor":"Rene Preissel","comment":null,"created_at":"2026-03-04T20:20:24Z","event_type":"closed","id":89,"issue_id":"auth-sandbox-2lz","new_value":"Terraform apply ausgeführt - Config wird jetzt korrekt in Keycloak gespeichert und geprüft","old_value":""}
