@@ -197,9 +197,14 @@ public class LoginTokenAuthenticator implements AuthenticationFlowCallback {
     private String getTrustedClientIds(AuthenticationFlowContext context) {
         var config = context.getAuthenticatorConfig();
         if (config == null) {
+            LOG.warn("getAuthenticatorConfig() returned null - cannot read trusted-client-ids");
             return null;
         }
-        return config.getConfig().get("trusted-client-ids");
+        var configMap = config.getConfig();
+        if (configMap == null) {
+            return null;
+        }
+        return configMap.get("trusted-client-ids");
     }
 
     private boolean isTrustedClient(String clientId, String trustedClientIdsConfig) {
