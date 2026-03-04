@@ -125,6 +125,10 @@ resource "keycloak_realm_user_profile" "auth_sandbox" {
 # ---------------------------------------------------------------------------
 # Client: device-login-client  (Standard Flow → OIDC code flow)
 # ---------------------------------------------------------------------------
+# Note: authentication_flow_binding_overrides depends on login_token_flow
+# being created first. The dependency is managed via explicit depends_on
+# to break the circular dependency.
+# ---------------------------------------------------------------------------
 resource "keycloak_openid_client" "device_login_client" {
   realm_id  = keycloak_realm.auth_sandbox.id
   client_id = "device-login-client"
@@ -145,13 +149,21 @@ resource "keycloak_openid_client" "device_login_client" {
 
   client_secret = var.device_login_client_secret
 
-  authentication_flow_binding_overrides {
-    browser_id = keycloak_authentication_flow.login_token_flow.id
-  }
-
   extra_config = {
     "use.jwks_url" = "true"
     "jwks_url"     = var.device_login_jwks_url
+  }
+
+  # Explicit dependency to ensure flows are created before this client
+  # This allows the flow binding below to reference the login_token_flow
+  depends_on = [
+    keycloak_authentication_flow.login_token_flow,
+    keycloak_authentication_execution.login_token_authenticator,
+    keycloak_authentication_execution_config.login_token_authenticator_config,
+  ]
+
+  authentication_flow_binding_overrides {
+    browser_id = keycloak_authentication_flow.login_token_flow.id
   }
 }
 
