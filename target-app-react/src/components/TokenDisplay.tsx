@@ -49,14 +49,9 @@ export default function TokenDisplay({ tokens }: Props) {
     setRefreshBusy(true);
     try {
       const newTokens = await refreshTokens(currentTokens.refresh_token);
-      const newPayload = parseJwt(newTokens.access_token)?.payload ?? {};
-      console.log('Old exp:', payload['exp']);
-      console.log('New exp:', newPayload['exp']);
       setCurrentTokens(newTokens);
       setUserinfoData(null);
-      setNow(Date.now());
     } catch (err) {
-      console.error('Refresh failed:', err);
       setRefreshError((err as Error).message);
     } finally {
       setRefreshBusy(false);
