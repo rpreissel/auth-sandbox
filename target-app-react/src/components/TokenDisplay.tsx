@@ -51,6 +51,8 @@ export default function TokenDisplay({ tokens }: Props) {
       const newTokens = await refreshTokens(currentTokens.refresh_token);
       setCurrentTokens(newTokens);
       setUserinfoData(null);
+      // Force immediate re-render
+      setTimeout(() => setNow(Date.now()), 0);
     } catch (err) {
       setRefreshError((err as Error).message);
     } finally {
