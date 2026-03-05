@@ -4,7 +4,7 @@ terraform {
   required_providers {
     keycloak = {
       source  = "mrparkers/keycloak"
-      version = "~> 4.4"
+      version = "~> 5.0"
     }
     null = {
       source  = "hashicorp/null"

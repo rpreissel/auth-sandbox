@@ -148,6 +148,7 @@ resource "keycloak_authentication_subflow" "level2_subflow" {
   alias             = "level2-subflow"
   provider_id       = "basic-flow"
   requirement       = "CONDITIONAL"
+  priority          = 2
   depends_on        = [keycloak_authentication_subflow.step_up_subflow_execution]
 }
 
@@ -184,6 +185,7 @@ resource "keycloak_authentication_subflow" "level1_subflow" {
   alias             = "level1-subflow"
   provider_id       = "basic-flow"
   requirement       = "CONDITIONAL"
+  priority          = 1
   depends_on        = [keycloak_authentication_subflow.step_up_subflow_execution]
 }
 
