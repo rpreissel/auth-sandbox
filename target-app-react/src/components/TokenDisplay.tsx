@@ -49,12 +49,12 @@ export default function TokenDisplay({ tokens }: Props) {
     setRefreshBusy(true);
     try {
       const newTokens = await refreshTokens(currentTokens.refresh_token);
+      const newPayload = parseJwt(newTokens.access_token)?.payload ?? {};
       console.log('Old exp:', payload['exp']);
+      console.log('New exp:', newPayload['exp']);
       setCurrentTokens(newTokens);
       setUserinfoData(null);
-      // Force re-render by toggling a dummy state
       setNow(Date.now());
-      console.log('New tokens set, new exp should be in render');
     } catch (err) {
       console.error('Refresh failed:', err);
       setRefreshError((err as Error).message);
