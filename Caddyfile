@@ -126,6 +126,14 @@ target-app.localhost:443 {
         }
     }
 
+    handle /api/revoke {
+        rewrite * /realms/auth-sandbox/protocol/openid-connect/revoke
+        reverse_proxy keycloak:8080 {
+            header_up X-Forwarded-Proto "https"
+            header_up X-Forwarded-Port  "8443"
+        }
+    }
+
     handle {
         root * /srv/target-app
         try_files {path} /index.html

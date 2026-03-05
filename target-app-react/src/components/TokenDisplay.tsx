@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { fetchUserinfo } from '../services/oidc';
+import { fetchUserinfo, refreshTokens, logout } from '../services/oidc';
 import type { OidcTokens } from '../types';
 
 interface Props {
@@ -13,8 +13,11 @@ export default function TokenDisplay({ tokens }: Props) {
   const [userinfoBusy, setUserinfoBusy] = useState(false);
   const [userinfoData, setUserinfoData] = useState<Record<string, unknown> | null>(null);
   const [userinfoError, setUserinfoError] = useState('');
+  const [refreshBusy, setRefreshBusy] = useState(false);
+  const [refreshError, setRefreshError] = useState('');
+  const [currentTokens, setCurrentTokens] = useState(tokens);
 
-  const payload = parseJwt(tokens.access_token)?.payload ?? {};
+  const payload = parseJwt(currentTokens.access_token)?.payload ?? {};
   const sub     = (payload['preferred_username'] as string | undefined)
                ?? (payload['sub'] as string | undefined)
                ?? '—';
@@ -26,13 +29,31 @@ export default function TokenDisplay({ tokens }: Props) {
     setUserinfoError('');
     setUserinfoBusy(true);
     try {
-      const data = await fetchUserinfo(tokens.access_token);
+      const data = await fetchUserinfo(currentTokens.access_token);
       setUserinfoData(data);
     } catch (err) {
       setUserinfoError((err as Error).message);
     } finally {
       setUserinfoBusy(false);
     }
+  }
+
+  async function handleRefresh() {
+    setRefreshError('');
+    setRefreshBusy(true);
+    try {
+      const newTokens = await refreshTokens(currentTokens.refresh_token);
+      setCurrentTokens(newTokens);
+      setUserinfoData(null);
+    } catch (err) {
+      setRefreshError((err as Error).message);
+    } finally {
+      setRefreshBusy(false);
+    }
+  }
+
+  function handleLogout() {
+    logout(currentTokens.refresh_token);
   }
 
   return (
@@ -116,6 +137,38 @@ export default function TokenDisplay({ tokens }: Props) {
               </div>
             ))}
           </div>
+        )}
+      </div>
+
+      {/* Refresh & Logout */}
+      <div className="rounded-xl border border-[--color-border] bg-[--color-surface] p-4 flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-semibold">Session</span>
+          <div className="flex gap-2">
+            <button
+              className={[
+                'text-xs px-3 py-1.5 rounded-lg border font-semibold transition-colors',
+                'border-[--color-border] bg-[--color-surface2] text-[--color-text] hover:border-[--color-accent]/50',
+                refreshBusy && 'opacity-50 cursor-not-allowed',
+              ].join(' ')}
+              onClick={handleRefresh}
+              disabled={refreshBusy}
+            >
+              {refreshBusy ? '⏳ Refreshing…' : '🔄 Refresh token'}
+            </button>
+            <button
+              className={[
+                'text-xs px-3 py-1.5 rounded-lg border font-semibold transition-colors',
+                'border-red-800/50 bg-red-950/30 text-red-400 hover:border-red-600/50',
+              ].join(' ')}
+              onClick={handleLogout}
+            >
+              🚪 Logout
+            </button>
+          </div>
+        </div>
+        {refreshError && (
+          <p className="text-xs text-red-400">{refreshError}</p>
         )}
       </div>
     </div>
