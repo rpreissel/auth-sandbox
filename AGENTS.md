@@ -103,6 +103,7 @@ cd e2e && npm test -- --reporter=verbose      # verbose output
   bd create "Kurztitel" --description="Was gemacht werden soll" -t feature|bug|task -p 0-4
   bd update <id> --status in_progress
   ```
+  **Regel: Erst bead-create, DANN Code schreiben, NACHHER committen.**
 - **Jedes neue Feature braucht einen E2E-Test** – Vor dem Commit prüfen ob E2E-Tests vorhanden sind.
 ```
 
@@ -225,6 +226,7 @@ bd automatically syncs via Dolt:
 - ✅ Always use `--json` flag for programmatic use
 - ✅ Link discovered work with `discovered-from` dependencies
 - ✅ Check `bd ready` before asking "what should I work on?"
+- ✅ **NEVER start implementing code without creating a bead first** — this is mandatory
 - ❌ Do NOT create markdown TODO lists
 - ❌ Do NOT use external issue trackers
 - ❌ Do NOT duplicate tracking systems
