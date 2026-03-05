@@ -49,9 +49,11 @@ export default function TokenDisplay({ tokens }: Props) {
     setRefreshBusy(true);
     try {
       const newTokens = await refreshTokens(currentTokens.refresh_token);
+      console.log('Refreshed tokens:', newTokens);
       setCurrentTokens(newTokens);
       setUserinfoData(null);
     } catch (err) {
+      console.error('Refresh failed:', err);
       setRefreshError((err as Error).message);
     } finally {
       setRefreshBusy(false);
