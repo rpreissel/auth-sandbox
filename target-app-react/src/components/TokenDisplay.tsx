@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { fetchUserinfo, refreshTokens, logout } from '../services/oidc';
 import type { OidcTokens } from '../types';
 
@@ -16,13 +16,19 @@ export default function TokenDisplay({ tokens }: Props) {
   const [refreshBusy, setRefreshBusy] = useState(false);
   const [refreshError, setRefreshError] = useState('');
   const [currentTokens, setCurrentTokens] = useState(tokens);
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   const payload = parseJwt(currentTokens.access_token)?.payload ?? {};
   const sub     = (payload['preferred_username'] as string | undefined)
                ?? (payload['sub'] as string | undefined)
                ?? '—';
   const exp     = payload['exp'] as number | undefined;
-  const secsLeft = exp ? Math.max(0, Math.round((exp * 1000 - Date.now()) / 1000)) : undefined;
+  const secsLeft = exp ? Math.max(0, Math.round((exp * 1000 - now) / 1000)) : undefined;
   const expired  = secsLeft === 0;
 
   async function handleUserinfo() {
