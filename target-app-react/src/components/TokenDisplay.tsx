@@ -107,11 +107,11 @@ export default function TokenDisplay({ tokens }: Props) {
             <div>
               <p className="text-xs text-[--color-text-dim] mb-2">Opaque / encrypted — no payload</p>
               <div className="bg-[--color-bg] rounded-lg p-3 font-mono text-[10px] break-all text-[--color-text-dim] max-h-24 overflow-y-auto">
-                {tokens.refresh_token || '(no refresh token)'}
+                {currentTokens.refresh_token || '(no refresh token)'}
               </div>
             </div>
           ) : (
-            <JwtView token={activeTab === 'access' ? tokens.access_token : tokens.id_token} />
+            <JwtView token={activeTab === 'access' ? currentTokens.access_token : currentTokens.id_token} />
           )}
         </div>
       </div>
