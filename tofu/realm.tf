@@ -545,6 +545,11 @@ resource "keycloak_openid_client" "admin_client" {
     var.admin_redirect_uri,
   ]
 
+  valid_post_logout_redirect_uris = [
+    var.admin_redirect_uri,
+    "https://admin.localhost:8443/",
+  ]
+
   web_origins = ["https://admin.localhost:8443"]
 }
 
