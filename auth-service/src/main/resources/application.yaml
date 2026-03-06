@@ -43,7 +43,7 @@ app:
 
   security:
     jwt:
-      jwk-set-uri: ${KEYCLOAK_ADMIN_JWK_SET_URI:https://keycloak.localhost:8443/realms/admin-sandbox/protocol/openid-connect/certs}
+      jwk-set-uri: ${KEYCLOAK_ADMIN_JWK_SET_URI:http://keycloak:8080/realms/admin-sandbox/protocol/openid-connect/certs}
 
   jwt:
     private-key-path: ${JWT_PRIVATE_KEY_PATH:/etc/auth-service/keys/private.pem}

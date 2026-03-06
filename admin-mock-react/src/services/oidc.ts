@@ -131,7 +131,7 @@ export async function refreshTokens(refreshToken: string): Promise<OidcTokens> {
   return tokens;
 }
 
-export async function logout(refreshToken: string): Promise<void> {
+export async function logout(refreshToken: string, idToken?: string): Promise<void> {
   await Promise.allSettled([
     revokeToken(refreshToken, 'refresh_token'),
   ]);
@@ -139,7 +139,10 @@ export async function logout(refreshToken: string): Promise<void> {
   clearTokens();
 
   const logoutUrl = new URL(KEYCLOAK_LOGOUT_ENDPOINT);
-  logoutUrl.searchParams.set('post_logout_redirect_uri', REDIRECT_URI);
+  logoutUrl.searchParams.set('post_logout_redirect_uri', window.location.origin + '/');
+  if (idToken) {
+    logoutUrl.searchParams.set('id_token_hint', idToken);
+  }
   window.location.href = logoutUrl.toString();
 }
 

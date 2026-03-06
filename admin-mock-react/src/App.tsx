@@ -17,8 +17,15 @@ import {
 
 type TabId = 'reg-codes' | 'devices';
 
+interface OidcTokens {
+  access_token: string;
+  id_token: string;
+  refresh_token: string;
+}
+
 export default function App() {
   const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [tokens, setTokens] = useState<OidcTokens | null>(null);
   const [isCallback, setIsCallback] = useState(false);
   const [activeTab, setActiveTab] = useState<TabId>('reg-codes');
   const [status, setStatus] = useState<{ text: string; kind: StatusKind }>({
@@ -42,6 +49,8 @@ export default function App() {
       exchangeCode(code, state)
         .then(async (tokens) => {
           setAccessToken(tokens.access_token);
+          setTokens(tokens);
+          setIsCallback(false);
           const info = await fetchUserinfo(tokens.access_token);
           const username = (info['preferred_username'] as string) || (info['username'] as string) || 'unknown';
           addEntry(`Logged in as '${username}'`, 'ok');
@@ -51,14 +60,16 @@ export default function App() {
           await loadDevices(tokens.access_token);
         })
         .catch((err) => {
+          setIsCallback(false);
           addEntry(`Login failed: ${err instanceof Error ? err.message : 'Unknown error'}`, 'err');
           setStatus({ text: 'Ready', kind: 'idle' });
         });
     } else {
-      const tokens = getTokens();
-      if (tokens?.access_token) {
-        setAccessToken(tokens.access_token);
-        fetchUserinfo(tokens.access_token)
+      const storedTokens = getTokens();
+      if (storedTokens?.access_token) {
+        setAccessToken(storedTokens.access_token);
+        setTokens(storedTokens);
+        fetchUserinfo(storedTokens.access_token)
           .then((info) => {
             const username = (info['preferred_username'] as string) || (info['username'] as string) || 'unknown';
             addEntry(`Session restored for '${username}'`, 'info');
@@ -84,11 +95,11 @@ export default function App() {
   }
 
   function handleLogout() {
-    const tokens = getTokens();
     setAccessToken(null);
+    setTokens(null);
     setStatus({ text: 'Ready', kind: 'idle' });
     if (tokens?.refresh_token) {
-      oidcLogout(tokens.refresh_token).catch(() => {});
+      oidcLogout(tokens.refresh_token, tokens.id_token).catch(() => {});
     } else {
       addEntry('Logged out.', 'warn');
     }

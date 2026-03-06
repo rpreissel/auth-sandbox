@@ -1,0 +1,21 @@
+{
+  "sessionID": "ses_34ab8fc43ffehHp0xwxd2jiRZ5",
+  "blocks": {
+    "goal": {
+      "value": "",
+      "charLimit": 1000,
+      "lastModified": "2026-03-03T21:11:55.042Z"
+    },
+    "progress": {
+      "value": "",
+      "charLimit": 2000,
+      "lastModified": "2026-03-03T21:11:55.042Z"
+    },
+    "context": {
+      "value": "WICHTIG: Jedes neue Feature braucht einen E2E-Test. Vor dem Commit prüfen ob E2E-Tests vorhanden sind.",
+      "charLimit": 1500,
+      "lastModified": "2026-03-03T21:11:55.042Z"
+    }
+  },
+  "updatedAt": "2026-03-03T21:11:55.042Z"
+}

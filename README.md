@@ -40,12 +40,18 @@ flowchart TB
 | `postgres` | 5432 | Shared PostgreSQL 16 (Keycloak + auth-service schemas) |
 | `keycloak` | 8080/8443 | Keycloak 26.x IAM |
 | `auth-service` | 8083 | Spring Boot backend (device-login + SSO + CMS) |
-| `app-mock` | 5173 | Browser mock of the mobile app |
-| `admin-mock` | 5173 | Admin panel |
-| `target-app` | 5173 | OIDC Auth Code + PKCE target SPA |
-| `cms-admin` | 5173 | CMS admin panel |
-| `home` | 5173 | Developer start page |
 | `caddy` | 80/443 | TLS-terminating reverse proxy |
+
+**SPA apps served via Caddy volumes:**
+
+| Volume Mount | URL | Description |
+|--------------|-----|-------------|
+| `app-mock-react/dist` | https://app-mock.localhost:8443 | Browser mock of the mobile app |
+| `admin-mock-react/dist` | https://admin.localhost:8443 | Admin panel |
+| `target-app-react/dist` | https://target-app.localhost:8443 | OIDC Auth Code + PKCE target SPA |
+| `cms-admin-react/dist` | https://cms.localhost:8443/cms-admin/ | CMS admin panel |
+| `cms-content/` | https://cms.localhost:8443/cms-content/ | Static CMS content pages |
+| `home/` | https://home.localhost:8443 | Developer start page |
 
 ---
 
@@ -254,7 +260,7 @@ CREATE TABLE device_login.cms_pages (
 | `cms-content/` | Static HTML content pages |
 | `c4-spec/` | LikeC4 architecture diagrams |
 | `tofu/` | OpenTofu — Keycloak realm setup |
-| `compose.yml` | Podman Compose stack (9 services) |
+| `compose.yml` | Podman Compose stack (5 services + frontend volumes) |
 | `Caddyfile` | Caddy reverse proxy — TLS for `*.localhost` |
 | `.env` / `.env.example` | Secrets (`.env` not committed) |
 
@@ -266,6 +272,7 @@ CREATE TABLE device_login.cms_pages (
 # 1. /etc/hosts (one-time)
 echo "127.0.0.1  keycloak.localhost" | sudo tee -a /etc/hosts
 echo "127.0.0.1  auth-service.localhost" | sudo tee -a /etc/hosts
+echo "127.0.0.1  sso-proxy.localhost" | sudo tee -a /etc/hosts
 echo "127.0.0.1  app-mock.localhost" | sudo tee -a /etc/hosts
 echo "127.0.0.1  admin.localhost" | sudo tee -a /etc/hosts
 echo "127.0.0.1  target-app.localhost" | sudo tee -a /etc/hosts

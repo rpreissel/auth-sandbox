@@ -1,0 +1,21 @@
+{
+  "sessionID": "ses_33ede2272ffeIDZGvg1IN8yBTM",
+  "blocks": {
+    "goal": {
+      "value": "SSO Transfer ACR-Level + Session-Überschreibung implementieren",
+      "charLimit": 1000,
+      "lastModified": "2026-03-06T03:23:27.208Z"
+    },
+    "progress": {
+      "value": "",
+      "charLimit": 2000,
+      "lastModified": "2026-03-06T03:23:27.207Z"
+    },
+    "context": {
+      "value": "",
+      "charLimit": 1500,
+      "lastModified": "2026-03-06T03:23:27.207Z"
+    }
+  },
+  "updatedAt": "2026-03-06T03:23:27.208Z"
+}

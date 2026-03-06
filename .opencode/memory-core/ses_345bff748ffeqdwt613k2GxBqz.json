@@ -1,0 +1,21 @@
+{
+  "sessionID": "ses_345bff748ffeqdwt613k2GxBqz",
+  "blocks": {
+    "goal": {
+      "value": "",
+      "charLimit": 1000,
+      "lastModified": "2026-03-04T19:11:01.100Z"
+    },
+    "progress": {
+      "value": "",
+      "charLimit": 2000,
+      "lastModified": "2026-03-04T19:11:01.100Z"
+    },
+    "context": {
+      "value": "KRITISCHE REGEL: IMMER zuerst Bead anlegen BEVOR Code geschrieben wird!\n- Befehl: `bd create \"Titel\" -t feature|bug|task -p 0-4 --json`\n- NACH dem Anlegen: `bd update <id> --status=in_progress`\n- AGENTS.md: \"IMMER ein Bead anlegen, bevor mit der Implementierung gestartet wird\"",
+      "charLimit": 1500,
+      "lastModified": "2026-03-04T19:11:15.018Z"
+    }
+  },
+  "updatedAt": "2026-03-04T19:11:15.018Z"
+}

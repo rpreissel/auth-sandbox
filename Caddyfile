@@ -108,6 +108,7 @@ admin.localhost:443 {
 
     handle {
         root * /srv/admin-mock
+        try_files {path} /index.html
         file_server
     }
 }
