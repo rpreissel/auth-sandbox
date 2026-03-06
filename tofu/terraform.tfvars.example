@@ -5,6 +5,7 @@ keycloak_admin_password          = "change-me-keycloak-admin-password"
 device_login_client_secret       = "change-me-device-login-client-secret"
 device_login_admin_client_secret = "change-me-device-login-admin-secret"
 cms_client_secret               = "change-me-cms-client-secret"
+admin_client_secret             = "change-me-admin-client-secret"
 
 # Optional overrides (defaults match .env.example)
 # keycloak_url             = "https://keycloak.localhost:8443"
@@ -20,3 +21,8 @@ cms_client_secret               = "change-me-cms-client-secret"
 # cms_public_redirect_uri  = "https://cms.localhost:8443/cms-content/index.html"
 # cms_premium_redirect_uri = "https://cms.localhost:8443/cms-content/premium.html"
 # cms_admin_redirect_uri   = "https://cms.localhost:8443/cms-content/admin.html"
+
+# Admin Realm
+# admin_realm_id            = "admin-sandbox"
+# admin_client_id           = "admin-client"
+# admin_redirect_uri        = "https://admin.localhost:8443/callback"

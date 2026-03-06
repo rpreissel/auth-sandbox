@@ -468,3 +468,99 @@ resource "keycloak_generic_protocol_mapper" "cms_admin_client_acr_userinfo_mappe
     "userinfo.token.claim" = "true"
   }
 }
+
+# ---------------------------------------------------------------------------
+# Admin Realm: admin-sandbox
+# ---------------------------------------------------------------------------
+resource "keycloak_realm" "admin_sandbox" {
+  realm   = var.admin_realm_id
+  enabled = true
+
+  display_name = "Admin Sandbox"
+
+  access_token_lifespan        = "30m"
+  sso_session_idle_timeout     = "1h"
+  sso_session_max_lifespan     = "8h"
+}
+
+resource "keycloak_realm_user_profile" "admin_sandbox" {
+  realm_id = keycloak_realm.admin_sandbox.id
+
+  attribute {
+    name         = "username"
+    display_name = "$${username}"
+
+    validator {
+      name = "length"
+      config = {
+        min = "1"
+        max = "255"
+      }
+    }
+    validator { name = "username-prohibited-characters" }
+
+    permissions {
+      view = ["admin", "user"]
+      edit = ["admin", "user"]
+    }
+  }
+
+  attribute {
+    name         = "email"
+    display_name = "$${email}"
+
+    validator {
+      name = "email"
+    }
+    validator {
+      name = "length"
+      config = {
+        max = "255"
+      }
+    }
+
+    permissions {
+      view = ["admin", "user"]
+      edit = ["admin", "user"]
+    }
+  }
+}
+
+resource "keycloak_openid_client" "admin_client" {
+  realm_id  = keycloak_realm.admin_sandbox.id
+  client_id = var.admin_client_id
+  name      = "Admin Client"
+  enabled   = true
+
+  access_type = "PUBLIC"
+
+  standard_flow_enabled        = true
+  implicit_flow_enabled        = false
+  direct_access_grants_enabled = false
+  service_accounts_enabled     = false
+
+  pkce_code_challenge_method = "S256"
+
+  valid_redirect_uris = [
+    var.admin_redirect_uri,
+  ]
+
+  web_origins = ["https://admin.localhost:8443"]
+}
+
+resource "keycloak_user" "admin_user" {
+  realm_id = keycloak_realm.admin_sandbox.id
+  username = var.keycloak_admin_username
+
+  initial_password {
+    value     = var.keycloak_admin_password
+    temporary = false
+  }
+}
+
+resource "keycloak_openid_client_default_scopes" "admin_client_default_scopes" {
+  realm_id  = keycloak_realm.admin_sandbox.id
+  client_id = keycloak_openid_client.admin_client.id
+
+  default_scopes = ["openid", "profile", "email"]
+}

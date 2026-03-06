@@ -10,6 +10,8 @@ import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
@@ -22,30 +24,33 @@ import java.util.List;
 @EnableWebSecurity
 public class SecurityConfig {
 
-    /**
-     * Password encoder used for admin credentials.
-     * Strength 12 is the recommended minimum.
-     */
+    @Value("${app.admin.username}")
+    String adminUsername;
+
+    @Value("${app.admin.password}")
+    String adminPassword;
+
+    @Value("${app.security.jwt.jwk-set-uri}")
+    String jwkSetUri;
+
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder(12);
     }
 
-    /**
-     * In-memory admin user backed by the Keycloak admin credentials from the environment.
-     * The plain-text password is encoded at startup; it is never stored in plain text.
-     */
     @Bean
-    public UserDetailsService userDetailsService(
-            @Value("${app.admin.username}") String adminUsername,
-            @Value("${app.admin.password}") String adminPassword,
-            PasswordEncoder passwordEncoder) {
+    public UserDetailsService userDetailsService(PasswordEncoder passwordEncoder) {
         var admin = User.builder()
                 .username(adminUsername)
                 .password(passwordEncoder.encode(adminPassword))
                 .roles("ADMIN")
                 .build();
         return new InMemoryUserDetailsManager(admin);
+    }
+
+    @Bean
+    public JwtDecoder jwtDecoder() {
+        return NimbusJwtDecoder.withJwkSetUri(jwkSetUri).build();
     }
 
     @Bean
@@ -82,6 +87,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/v1/admin/**", "/api/v1/cms/**").hasRole("ADMIN")
                 .anyRequest().authenticated()
             )
+            .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.decoder(jwtDecoder())))
             .httpBasic(basic -> {});
 
         return http.build();

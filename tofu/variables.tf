@@ -105,3 +105,27 @@ variable "cms_admin_redirect_uri" {
   type        = string
   default     = "https://cms.localhost:8443/cms-content/*"
 }
+
+variable "admin_client_secret" {
+  description = "Client secret for admin-client (OIDC)."
+  type        = string
+  sensitive   = true
+}
+
+variable "admin_realm_id" {
+  description = "Name / ID of the admin realm."
+  type        = string
+  default     = "admin-sandbox"
+}
+
+variable "admin_client_id" {
+  description = "Client ID for admin-client."
+  type        = string
+  default     = "admin-client"
+}
+
+variable "admin_redirect_uri" {
+  description = "Redirect URI for admin-client."
+  type        = string
+  default     = "https://admin.localhost:8443/callback"
+}

@@ -67,10 +67,37 @@ app-mock.localhost:443 {
 }
 
 # admin.localhost — admin panel
-# /api/* → auth-service (admin endpoints, Basic Auth forwarded)
-# /      → static files
+# /api/token    → Keycloak token endpoint (OIDC code exchange)
+# /api/userinfo → Keycloak userinfo endpoint
+# /api/revoke  → Keycloak revoke endpoint
+# /api/*       → auth-service (admin endpoints, Bearer Token)
+# /            → static files
 admin.localhost:443 {
     tls /etc/caddy/certs/keycloak.localhost+7.pem /etc/caddy/certs/keycloak.localhost+7-key.pem
+
+    handle /api/userinfo {
+        rewrite * /realms/admin-sandbox/protocol/openid-connect/userinfo
+        reverse_proxy keycloak:8080 {
+            header_up X-Forwarded-Proto "https"
+            header_up X-Forwarded-Port  "8443"
+        }
+    }
+
+    handle /api/token {
+        rewrite * /realms/admin-sandbox/protocol/openid-connect/token
+        reverse_proxy keycloak:8080 {
+            header_up X-Forwarded-Proto "https"
+            header_up X-Forwarded-Port  "8443"
+        }
+    }
+
+    handle /api/revoke {
+        rewrite * /realms/admin-sandbox/protocol/openid-connect/revoke
+        reverse_proxy keycloak:8080 {
+            header_up X-Forwarded-Proto "https"
+            header_up X-Forwarded-Port  "8443"
+        }
+    }
 
     handle /api/* {
         reverse_proxy auth-service:8083 {

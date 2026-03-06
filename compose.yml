@@ -98,7 +98,7 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./caddy_data/certs:/etc/caddy/certs:ro
       - ./app-mock-react/dist:/srv/app-mock:ro
-      - ./admin-mock-react/dist:/srv/admin-mock:ro
+      - ./admin-mock-react/dist:/srv/admin-mock:rw
       - ./home:/srv/home:ro
       - ./target-app-react/dist:/srv/target-app:ro
       - ./cms-content:/srv/cms-content:ro

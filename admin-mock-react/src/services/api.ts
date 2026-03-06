@@ -1,23 +1,14 @@
 import type { Device, RegistrationCode, SyncResult, CleanupResult } from '../types';
 import { ApiError, handleApiResponse } from '@auth-sandbox/utils';
 
-interface Credentials {
-  username: string;
-  password: string;
-}
-
-function basicAuth(creds: Credentials): string {
-  return 'Basic ' + btoa(creds.username + ':' + creds.password);
-}
-
 async function apiFetch<T>(
   method: string,
   path: string,
-  creds: Credentials,
+  accessToken: string,
   body?: unknown,
 ): Promise<T> {
   const headers: Record<string, string> = {
-    Authorization: basicAuth(creds),
+    Authorization: `Bearer ${accessToken}`,
     Accept: 'application/json',
   };
   if (body !== undefined) {
@@ -38,34 +29,34 @@ async function apiFetch<T>(
 }
 
 export const api = {
-  getRegistrationCodes(creds: Credentials): Promise<RegistrationCode[]> {
-    return apiFetch('GET', '/api/v1/admin/registration-codes', creds);
+  getRegistrationCodes(accessToken: string): Promise<RegistrationCode[]> {
+    return apiFetch('GET', '/api/v1/admin/registration-codes', accessToken);
   },
 
   createRegistrationCode(
-    creds: Credentials,
+    accessToken: string,
     payload: { userId: string; name: string; activationCode: string },
   ): Promise<RegistrationCode> {
-    return apiFetch('POST', '/api/v1/admin/registration-codes', creds, payload);
+    return apiFetch('POST', '/api/v1/admin/registration-codes', accessToken, payload);
   },
 
-  deleteRegistrationCode(creds: Credentials, id: string): Promise<null> {
-    return apiFetch('DELETE', `/api/v1/admin/registration-codes/${id}`, creds);
+  deleteRegistrationCode(accessToken: string, id: string): Promise<null> {
+    return apiFetch('DELETE', `/api/v1/admin/registration-codes/${id}`, accessToken);
   },
 
-  syncRegistrationCodes(creds: Credentials): Promise<SyncResult> {
-    return apiFetch('POST', '/api/v1/admin/registration-codes/sync', creds);
+  syncRegistrationCodes(accessToken: string): Promise<SyncResult> {
+    return apiFetch('POST', '/api/v1/admin/registration-codes/sync', accessToken);
   },
 
-  cleanupExpiredCodes(creds: Credentials): Promise<CleanupResult> {
-    return apiFetch('POST', '/api/v1/admin/registration-codes/cleanup', creds);
+  cleanupExpiredCodes(accessToken: string): Promise<CleanupResult> {
+    return apiFetch('POST', '/api/v1/admin/registration-codes/cleanup', accessToken);
   },
 
-  getDevices(creds: Credentials): Promise<Device[]> {
-    return apiFetch('GET', '/api/v1/admin/devices', creds);
+  getDevices(accessToken: string): Promise<Device[]> {
+    return apiFetch('GET', '/api/v1/admin/devices', accessToken);
   },
 
-  deleteDevice(creds: Credentials, id: string): Promise<null> {
-    return apiFetch('DELETE', `/api/v1/admin/devices/${id}`, creds);
+  deleteDevice(accessToken: string, id: string): Promise<null> {
+    return apiFetch('DELETE', `/api/v1/admin/devices/${id}`, accessToken);
   },
 };
