@@ -104,32 +104,56 @@ export async function setup(): Promise<void> {
     envVars["KEYCLOAK_ADMIN_PASSWORD"] ?? "admin";
   process.env["E2E_CA_CERT_PATH"] = path.join(REPO_ROOT, "certs", "caddy-root.crt");
 
+  // Override Keycloak token endpoint to use external URL (host-accessible)
+  // The .env file contains internal Docker URLs (http://keycloak:8080) which only
+  // work from inside containers. Tests run on the host and need external URLs.
+  process.env["KEYCLOAK_ADMIN_TOKEN_ENDPOINT"] =
+    "https://keycloak.localhost:8443/realms/auth-sandbox/protocol/openid-connect/token";
+  process.env["KEYCLOAK_TOKEN_ENDPOINT"] =
+    "https://keycloak.localhost:8443/realms/auth-sandbox/protocol/openid-connect/token";
+
   const caCertPath = process.env["E2E_CA_CERT_PATH"]!;
   const authBase = process.env["E2E_AUTH_BASE"]!;
   const keycloakBase = process.env["E2E_KEYCLOAK_BASE"]!;
 
-  // 2. Extract Caddy root CA from the running container ----------------------
-  // Caddy uses `tls internal` with its own generated CA (not certs/ca.crt).
-  // We extract it at test startup so Node can trust the TLS certificates.
-  const caddyCaInContainer = "/data/caddy/pki/authorities/local/root.crt";
-  const caddyContainer = "auth-sandbox-caddy-1";
+  // 2. Extract root CA for TLS verification ------------------------------------
+  // The compose stack uses mkcert-issued certificates (caddy_data/certs/*.pem),
+  // NOT Caddy's internal CA. We need the mkcert root CA to trust these certs.
+  fs.mkdirSync(path.dirname(caCertPath), { recursive: true });
+
+  let mkcertCaPath: string | null = null;
+
+  // Try to find mkcert CA: first via mkcert -CAROOT, then common macOS paths
   try {
-    const caddyCaBytes = execSync(
-      `docker exec ${caddyContainer} cat ${caddyCaInContainer}`,
-      { stdio: ["pipe", "pipe", "pipe"] }
+    const mkcertCaroot = execSync("mkcert -CAROOT", { encoding: "utf8" }).trim();
+    mkcertCaPath = path.join(mkcertCaroot, "rootCA.pem");
+  } catch {
+    // mkcert not available or not in PATH
+  }
+
+  // Fallback to common macOS path
+  if (!mkcertCaPath || !fs.existsSync(mkcertCaPath)) {
+    const macOsPath = path.join(
+      process.env.HOME ?? "",
+      "Library",
+      "Application Support",
+      "mkcert",
+      "rootCA.pem"
     );
-    fs.mkdirSync(path.dirname(caCertPath), { recursive: true });
-    fs.writeFileSync(caCertPath, caddyCaBytes);
-    console.log(`[e2e global-setup] Caddy root CA written to ${caCertPath}`);
-  } catch (err) {
-    // Fallback: try the pre-generated certs/ca.crt (may not match)
-    if (!fs.existsSync(caCertPath)) {
-      throw new Error(
-        `Could not extract Caddy CA and ${caCertPath} does not exist.\n` +
-          `Run: docker exec ${caddyContainer} cat ${caddyCaInContainer} > certs/caddy-root.crt`
-      );
+    if (fs.existsSync(macOsPath)) {
+      mkcertCaPath = macOsPath;
     }
-    console.warn("[e2e global-setup] Could not extract Caddy CA; using existing certs/ca.crt");
+  }
+
+  if (mkcertCaPath && fs.existsSync(mkcertCaPath)) {
+    fs.copyFileSync(mkcertCaPath, caCertPath);
+    console.log(`[e2e global-setup] mkcert root CA written to ${caCertPath}`);
+  } else {
+    throw new Error(
+      `mkcert CA not found. Please install mkcert and run:\n` +
+        `  mkcert -install\n` +
+        `Expected locations: mkcert -CAROOT or ~/Library/Application Support/mkcert/rootCA.pem`
+    );
   }
 
   // 3. Wait for stack health ---------------------------------------------------

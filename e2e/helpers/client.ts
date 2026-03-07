@@ -178,7 +178,7 @@ export class AuthServiceClient {
 
   constructor(
     base = process.env["E2E_AUTH_BASE"] ?? "https://auth-service.localhost:8443",
-    keycloakTokenUrl = process.env["KEYCLOAK_ADMIN_TOKEN_ENDPOINT"] ?? "http://keycloak:8080/realms/auth-sandbox/protocol/openid-connect/token",
+    keycloakTokenUrl = process.env["KEYCLOAK_ADMIN_TOKEN_ENDPOINT"] ?? "https://keycloak.localhost:8443/realms/auth-sandbox/protocol/openid-connect/token",
     adminClientId = process.env["KEYCLOAK_ADMIN_CLIENT_ID"] ?? "device-login-admin",
     adminClientSecret = process.env["KEYCLOAK_ADMIN_CLIENT_SECRET"] ?? ""
   ) {
@@ -199,17 +199,42 @@ export class AuthServiceClient {
       client_secret: this.adminClientSecret,
     });
 
-    const response = await fetch(this.keycloakTokenUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: body.toString(),
+    const parsed = new URL(this.keycloakTokenUrl);
+    const isHttps = parsed.protocol === "https:";
+
+    const json = await new Promise<{ access_token: string; expires_in: number }>((resolve, reject) => {
+      const options: https.RequestOptions = {
+        hostname: parsed.hostname,
+        port: parsed.port || (isHttps ? 443 : 80),
+        path: parsed.pathname + parsed.search,
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "Content-Length": Buffer.byteLength(body.toString()).toString(),
+        },
+        agent: isHttps ? makeAgent() : undefined,
+      };
+
+      const req = (isHttps ? https : http).request(options, (res) => {
+        let data = "";
+        res.on("data", (chunk) => (data += chunk));
+        res.on("end", () => {
+          if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+            try {
+              resolve(JSON.parse(data));
+            } catch {
+              reject(new Error(`Invalid JSON response: ${data.substring(0, 100)}`));
+            }
+          } else {
+            reject(new Error(`Failed to get admin token: ${res.statusCode} ${data}`));
+          }
+        });
+      });
+      req.on("error", reject);
+      req.write(body.toString());
+      req.end();
     });
 
-    if (!response.ok) {
-      throw new Error(`Failed to get admin token: ${response.status} ${await response.text()}`);
-    }
-
-    const json = await response.json() as { access_token: string; expires_in: number };
     this.adminToken = json.access_token;
     this.tokenExpiry = Date.now() + json.expires_in * 1000;
     return this.adminToken;
