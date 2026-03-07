@@ -75,7 +75,14 @@ public class DeviceService {
                 .build();
         deviceRepository.save(device);
 
-        // --- 8. Increment the use counter on the registration code -------------
+        // --- 8. Ensure user has a password — request UPDATE_PASSWORD if not set -----
+        if (!keycloakAdminClient.hasPassword(keycloakUserId)) {
+            log.info("User '{}' (keycloak: {}) has no password — adding UPDATE_PASSWORD required action",
+                    request.userId(), keycloakUserId);
+            keycloakAdminClient.addRequiredAction(keycloakUserId, "UPDATE_PASSWORD");
+        }
+
+        // --- 9. Increment the use counter on the registration code -------------
         regCode.setUseCount(regCode.getUseCount() + 1);
         registrationCodeRepository.save(regCode);
 

@@ -45,6 +45,7 @@ class DeviceServiceTest {
         when(registrationCodeRepository.findByUserId("alice")).thenReturn(Optional.of(regCode));
         when(deviceRepository.existsByDeviceId("dev-001")).thenReturn(false);
         when(keycloakAdminClient.getUserIdByUsername("alice")).thenReturn(Optional.of("kc-uuid-alice"));
+        when(keycloakAdminClient.hasPassword("kc-uuid-alice")).thenReturn(true);
         when(deviceRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(registrationCodeRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
@@ -78,6 +79,7 @@ class DeviceServiceTest {
         when(registrationCodeRepository.findByUserId("pre-existing-user")).thenReturn(Optional.of(regCode));
         when(deviceRepository.existsByDeviceId("dev-pe")).thenReturn(false);
         when(keycloakAdminClient.getUserIdByUsername("pre-existing-user")).thenReturn(Optional.of("kc-uuid-pe"));
+        when(keycloakAdminClient.hasPassword("kc-uuid-pe")).thenReturn(true);
         when(deviceRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(registrationCodeRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
@@ -95,6 +97,7 @@ class DeviceServiceTest {
         when(registrationCodeRepository.findByUserId("bob")).thenReturn(Optional.of(regCode));
         when(deviceRepository.existsByDeviceId("dev-bob-4")).thenReturn(false);
         when(keycloakAdminClient.getUserIdByUsername("bob")).thenReturn(Optional.of("kc-uuid-bob"));
+        when(keycloakAdminClient.hasPassword("kc-uuid-bob")).thenReturn(true);
         when(deviceRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(registrationCodeRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
@@ -121,6 +124,7 @@ class DeviceServiceTest {
         when(keycloakAdminClient.getUserIdByUsername("deleted-user")).thenReturn(Optional.empty());
         when(keycloakAdminClient.createUserWithFederatedIdentity("deleted-user", "Deleted User"))
                 .thenReturn("kc-uuid-new");
+        when(keycloakAdminClient.hasPassword("kc-uuid-new")).thenReturn(true);
         when(deviceRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(registrationCodeRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
@@ -130,6 +134,38 @@ class DeviceServiceTest {
         assertThat(response.deviceId()).isEqualTo("dev-deleted");
         verify(keycloakAdminClient).createUserWithFederatedIdentity("deleted-user", "Deleted User");
         verify(keycloakAdminClient).ensureDeviceLoginFederatedIdentityLink("deleted-user");
+    }
+
+    @Test
+    void registerDevice_addsUpdatePasswordRequiredAction_whenUserHasNoPassword() {
+        RegistrationCode regCode = activeCode("alice", "Alice Smith", "secret", 0);
+        when(registrationCodeRepository.findByUserId("alice")).thenReturn(Optional.of(regCode));
+        when(deviceRepository.existsByDeviceId("dev-001")).thenReturn(false);
+        when(keycloakAdminClient.getUserIdByUsername("alice")).thenReturn(Optional.of("kc-uuid-alice"));
+        when(keycloakAdminClient.hasPassword("kc-uuid-alice")).thenReturn(false);
+        when(deviceRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(registrationCodeRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        deviceService.registerDevice(
+                new RegisterDeviceRequest("dev-001", "alice", "Alice Smith", "secret", "pubkey"));
+
+        verify(keycloakAdminClient).addRequiredAction("kc-uuid-alice", "UPDATE_PASSWORD");
+    }
+
+    @Test
+    void registerDevice_doesNotAddUpdatePasswordAction_whenUserAlreadyHasPassword() {
+        RegistrationCode regCode = activeCode("bob", "Bob", "secret", 0);
+        when(registrationCodeRepository.findByUserId("bob")).thenReturn(Optional.of(regCode));
+        when(deviceRepository.existsByDeviceId("dev-bob")).thenReturn(false);
+        when(keycloakAdminClient.getUserIdByUsername("bob")).thenReturn(Optional.of("kc-uuid-bob"));
+        when(keycloakAdminClient.hasPassword("kc-uuid-bob")).thenReturn(true);
+        when(deviceRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(registrationCodeRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        deviceService.registerDevice(
+                new RegisterDeviceRequest("dev-bob", "bob", "Bob", "secret", "pubkey"));
+
+        verify(keycloakAdminClient, never()).addRequiredAction(any(), any());
     }
 
     // -----------------------------------------------------------------------
