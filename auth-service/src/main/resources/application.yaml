@@ -24,6 +24,16 @@ spring:
     schemas: device_login
     default-schema: device_login
 
+  security:
+    user:
+      name: ${KEYCLOAK_ADMIN:admin}
+      password: ${KEYCLOAK_ADMIN_PASSWORD:admin-password}
+      role: ADMIN
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${KEYCLOAK_ADMIN_JWK_SET_URI:http://keycloak:8080/realms/admin-sandbox/protocol/openid-connect/certs}
+
 server:
   port: 8083
 
@@ -40,10 +50,6 @@ app:
   admin:
     username: ${KEYCLOAK_ADMIN:admin}
     password: ${KEYCLOAK_ADMIN_PASSWORD:admin-password}
-
-  security:
-    jwt:
-      jwk-set-uri: ${KEYCLOAK_ADMIN_JWK_SET_URI:http://keycloak:8080/realms/admin-sandbox/protocol/openid-connect/certs}
 
   jwt:
     private-key-path: ${JWT_PRIVATE_KEY_PATH:/etc/auth-service/keys/private.pem}
