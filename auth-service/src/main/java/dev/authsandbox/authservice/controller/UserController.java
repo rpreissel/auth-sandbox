@@ -64,8 +64,11 @@ public class UserController {
             throw new SecurityException("Invalid or expired token");
         }
 
-        String userId = (String) response.get("sub");
-        if (userId == null) {
+        String userId = (String) response.get("preferred_username");
+        if (userId == null || userId.isBlank()) {
+            userId = (String) response.get("sub");
+        }
+        if (userId == null || userId.isBlank()) {
             throw new SecurityException("No subject in token");
         }
 

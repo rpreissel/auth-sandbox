@@ -42,6 +42,7 @@ public class SecurityConfig {
                     "/api/v1/devices/**",
                     "/api/v1/auth/**",
                     "/api/v1/transfer/**",
+                    "/api/v1/users/me/**",
                     "/p/**",
                     "/cms/**",
                     "/actuator/health",
