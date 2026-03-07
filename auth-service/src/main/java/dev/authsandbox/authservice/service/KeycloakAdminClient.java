@@ -191,6 +191,38 @@ public class KeycloakAdminClient {
                 .anyMatch(c -> "password".equals(c.get("type")));
     }
 
+    /**
+     * Sets a password credential for the given Keycloak user.
+     * Uses the Admin REST API: POST /admin/realms/{realm}/users/{id}/credentials
+     *
+     * @param keycloakUserId the Keycloak-internal user UUID
+     * @param password       the new password to set
+     */
+    public void setPassword(String keycloakUserId, String password) {
+        String adminToken = getAdminToken();
+        String url = userUrl(keycloakUserId) + "/credentials";
+
+        Map<String, Object> credential = Map.of(
+                "type", "password",
+                "value", password,
+                "temporary", false
+        );
+
+        restClient.post()
+                .uri(url)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(credential)
+                .retrieve()
+                .onStatus(status -> !status.is2xxSuccessful(), (req, resp) -> {
+                    throw new KeycloakUpstreamException(
+                            "Failed to set password for user '" + keycloakUserId + "': " + resp.getStatusCode());
+                })
+                .toBodilessEntity();
+
+        log.info("Password set for user '{}'", keycloakUserId);
+    }
+
     // -----------------------------------------------------------------------
     // Private helpers
     // -----------------------------------------------------------------------

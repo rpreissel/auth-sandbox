@@ -79,3 +79,24 @@ export async function initiateTransfer(accessToken: string): Promise<InitiateTra
   });
   return handleApiResponse<InitiateTransferResponse>(resp);
 }
+
+export async function getPasswordStatus(accessToken: string): Promise<{ hasPassword: boolean }> {
+  const resp = await fetch(`${AUTH_SERVICE_URL}/api/v1/users/me/password-status`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  return handleApiResponse<{ hasPassword: boolean }>(resp);
+}
+
+export async function setPassword(accessToken: string, password: string): Promise<void> {
+  const resp = await fetch(`${AUTH_SERVICE_URL}/api/v1/users/me/password`, {
+    method:  'POST',
+    headers: { 
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body:    JSON.stringify({ password }),
+  });
+  if (!resp.ok) {
+    throw new Error(`Failed to set password: ${resp.status}`);
+  }
+}
