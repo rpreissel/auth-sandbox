@@ -563,9 +563,80 @@ resource "keycloak_user" "admin_user" {
   }
 }
 
+resource "keycloak_role" "admin" {
+  realm_id = keycloak_realm.admin_sandbox.id
+  name     = "admin"
+}
+
+resource "keycloak_user_roles" "admin_user_roles" {
+  realm_id = keycloak_realm.admin_sandbox.id
+  user_id  = keycloak_user.admin_user.id
+
+  role_ids = [keycloak_role.admin.id]
+}
+
 resource "keycloak_openid_client_default_scopes" "admin_client_default_scopes" {
   realm_id  = keycloak_realm.admin_sandbox.id
   client_id = keycloak_openid_client.admin_client.id
 
-  default_scopes = ["openid", "profile", "email"]
+  default_scopes = ["openid", "profile", "email", "roles"]
+}
+
+resource "keycloak_generic_protocol_mapper" "admin_client_roles_mapper" {
+  realm_id  = keycloak_realm.admin_sandbox.id
+  client_id = keycloak_openid_client.admin_client.id
+  name      = "client roles"
+  protocol  = "openid-connect"
+  protocol_mapper = "oidc-usermodel-client-role-mapper"
+
+  config = {
+    "id.token.claim" = "true"
+    "access.token.claim" = "true"
+    "userinfo.token.claim" = "true"
+    "claim.name" = "roles"
+    "jsonType.label" = "String"
+    "multivalued" = "true"
+  }
+}
+
+resource "keycloak_generic_protocol_mapper" "admin_realm_roles_mapper" {
+  realm_id  = keycloak_realm.admin_sandbox.id
+  client_id = keycloak_openid_client.admin_client.id
+  name      = "realm roles"
+  protocol  = "openid-connect"
+  protocol_mapper = "oidc-usermodel-realm-role-mapper"
+
+  config = {
+    "id.token.claim" = "true"
+    "access.token.claim" = "true"
+    "userinfo.token.claim" = "true"
+    "claim.name" = "realm_roles"
+    "jsonType.label" = "String"
+    "multivalued" = "true"
+  }
+}
+
+# ---------------------------------------------------------------------------
+# Client: cms-admin-client (PUBLIC) in admin-sandbox realm — CMS Admin SPA
+# ---------------------------------------------------------------------------
+resource "keycloak_openid_client" "cms_admin_client_admin_sandbox" {
+  realm_id  = keycloak_realm.admin_sandbox.id
+  client_id = "cms-admin-client"
+  name      = "CMS Admin Client (Admin Sandbox)"
+  enabled   = true
+
+  access_type = "PUBLIC"
+
+  standard_flow_enabled        = true
+  implicit_flow_enabled        = false
+  direct_access_grants_enabled = false
+  service_accounts_enabled     = false
+
+  pkce_code_challenge_method = "S256"
+
+  valid_redirect_uris = [
+    var.cms_admin_sandbox_redirect_uri,
+  ]
+
+  web_origins = ["https://cms.localhost:8443"]
 }

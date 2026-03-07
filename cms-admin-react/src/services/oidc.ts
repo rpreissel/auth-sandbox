@@ -1,9 +1,9 @@
 import { handleApiResponse } from '@auth-sandbox/utils';
 import type { OidcTokens } from '../types';
 
-const KEYCLOAK_AUTH_ENDPOINT = import.meta.env.VITE_KEYCLOAK_AUTH_ENDPOINT || 'https://keycloak.localhost:8443/realms/auth-sandbox/protocol/openid-connect/auth';
-const KEYCLOAK_LOGOUT_ENDPOINT = import.meta.env.VITE_KEYCLOAK_LOGOUT_ENDPOINT || 'https://keycloak.localhost:8443/realms/auth-sandbox/protocol/openid-connect/logout';
-const CLIENT_ID      = import.meta.env.VITE_CLIENT_ID || 'cms-client';
+const KEYCLOAK_AUTH_ENDPOINT = import.meta.env.VITE_KEYCLOAK_AUTH_ENDPOINT || 'https://keycloak.localhost:8443/realms/admin-sandbox/protocol/openid-connect/auth';
+const KEYCLOAK_LOGOUT_ENDPOINT = import.meta.env.VITE_KEYCLOAK_LOGOUT_ENDPOINT || 'https://keycloak.localhost:8443/realms/admin-sandbox/protocol/openid-connect/logout';
+const CLIENT_ID      = import.meta.env.VITE_CLIENT_ID || 'cms-admin-client';
 const REDIRECT_URI   = import.meta.env.VITE_REDIRECT_URI || 'https://cms.localhost:8443/cms-admin/';
 const SCOPE          = import.meta.env.VITE_SCOPE || 'openid profile';
 

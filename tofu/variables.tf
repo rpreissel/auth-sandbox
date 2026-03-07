@@ -106,6 +106,12 @@ variable "cms_admin_redirect_uri" {
   default     = "https://cms.localhost:8443/cms-content/*"
 }
 
+variable "cms_admin_sandbox_redirect_uri" {
+  description = "Redirect URI for cms-admin-client in admin-sandbox realm."
+  type        = string
+  default     = "https://cms.localhost:8443/cms-admin/*"
+}
+
 variable "admin_client_secret" {
   description = "Client secret for admin-client (OIDC)."
   type        = string
