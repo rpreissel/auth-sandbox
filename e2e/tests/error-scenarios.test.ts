@@ -120,15 +120,69 @@ async function rawRequest(
   });
 }
 
-function adminBasicAuth(username: string, password: string): string {
-  return "Basic " + Buffer.from(`${username}:${password}`).toString("base64");
+function adminBearerToken(keycloakTokenUrl: string, clientId: string, clientSecret: string): string {
+  return "Bearer " + getAdminTokenSync(keycloakTokenUrl, clientId, clientSecret);
 }
 
+function getAdminTokenSync(keycloakTokenUrl: string, clientId: string, clientSecret: string): string {
+  const body = new URLSearchParams({
+    grant_type: "client_credentials",
+    client_id: clientId,
+    client_secret: clientSecret,
+  });
+
+  const http = keycloakTokenUrl.startsWith("https:") ? require("https") : require("http");
+
+  let token = "";
+  let resolved = false;
+
+  const options = {
+    hostname: new URL(keycloakTokenUrl).hostname,
+    port: new URL(keycloakTokenUrl).port || (keycloakTokenUrl.startsWith("https:") ? 443 : 80),
+    path: new URL(keycloakTokenUrl).pathname,
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      "Content-Length": Buffer.byteLength(body.toString()),
+    },
+  };
+
+  const req = http.request(options, (res) => {
+    let data = "";
+    res.on("data", (chunk) => (data += chunk));
+    res.on("end", () => {
+      if (res.statusCode === 200) {
+        const json = JSON.parse(data);
+        token = json.access_token;
+      }
+      resolved = true;
+    });
+  });
+
+  req.on("error", () => {
+    resolved = true;
+  });
+
+  req.write(body.toString());
+  req.end();
+
+  while (!resolved) {
+    // spin wait - acceptable for test setup
+  }
+
+  if (!token) {
+    throw new Error("Failed to get admin token");
+  }
+
+  return token;
+}
+
+const keycloakTokenUrl = process.env["KEYCLOAK_ADMIN_TOKEN_ENDPOINT"] ?? "http://keycloak:8080/realms/auth-sandbox/protocol/openid-connect/token";
+const adminClientId = process.env["KEYCLOAK_ADMIN_CLIENT_ID"] ?? "device-login-admin";
+const adminClientSecret = process.env["KEYCLOAK_ADMIN_CLIENT_SECRET"] ?? "";
+
 const correctAdminAuth = () =>
-  adminBasicAuth(
-    process.env["E2E_ADMIN_USERNAME"] ?? "admin",
-    process.env["E2E_ADMIN_PASSWORD"] ?? ""
-  );
+  adminBearerToken(keycloakTokenUrl, adminClientId, adminClientSecret);
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -154,11 +208,8 @@ describe("Admin endpoint authentication", () => {
     expect(res.status).toBe(401);
   });
 
-  it("GET /admin/registration-codes with wrong password → 401", async () => {
-    const badAuth = adminBasicAuth(
-      process.env["E2E_ADMIN_USERNAME"] ?? "admin",
-      "completely-wrong-password"
-    );
+  it("GET /admin/registration-codes with wrong client secret → 401", async () => {
+    const badAuth = adminBearerToken(keycloakTokenUrl, adminClientId, "completely-wrong-secret");
     const res = await rawRequest(
       "GET",
       "/api/v1/admin/registration-codes",
@@ -169,8 +220,8 @@ describe("Admin endpoint authentication", () => {
     expect(res.status).toBe(401);
   });
 
-  it("GET /admin/registration-codes with wrong username → 401", async () => {
-    const badAuth = adminBasicAuth("not-the-admin", process.env["E2E_ADMIN_PASSWORD"] ?? "");
+  it("GET /admin/registration-codes with invalid token → 401", async () => {
+    const badAuth = "Bearer invalid-token-12345";
     const res = await rawRequest(
       "GET",
       "/api/v1/admin/registration-codes",

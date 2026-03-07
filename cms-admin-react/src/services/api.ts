@@ -11,12 +11,11 @@ export class ApiError extends Error {
 }
 
 interface Credentials {
-  username: string;
-  password: string;
+  accessToken: string;
 }
 
-function basicAuth(creds: Credentials): string {
-  return 'Basic ' + btoa(creds.username + ':' + creds.password);
+function bearerAuth(creds: Credentials): string {
+  return 'Bearer ' + creds.accessToken;
 }
 
 async function apiFetch<T>(
@@ -26,7 +25,7 @@ async function apiFetch<T>(
   body?: unknown,
 ): Promise<T> {
   const headers: Record<string, string> = {
-    Authorization: basicAuth(creds),
+    Authorization: bearerAuth(creds),
     Accept: 'application/json',
   };
   if (body !== undefined) {

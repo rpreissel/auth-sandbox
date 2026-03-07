@@ -3,7 +3,32 @@
 set -euo pipefail
 
 BASE="https://auth-service.localhost:8443"
-ADMIN_CREDS="admin:admin-password"
+
+# Keycloak admin token configuration
+KEYCLOAK_TOKEN_URL="${KEYCLOAK_ADMIN_TOKEN_ENDPOINT:-http://keycloak:8080/realms/auth-sandbox/protocol/openid-connect/token}"
+ADMIN_CLIENT_ID="${KEYCLOAK_ADMIN_CLIENT_ID:-device-login-admin}"
+ADMIN_CLIENT_SECRET="${KEYCLOAK_ADMIN_CLIENT_SECRET:-}"
+
+# Get admin access token
+get_admin_token() {
+  local token_url="$1"
+  local client_id="$2"
+  local client_secret="$3"
+
+  local response
+  response=$(curl -sk -X POST "$token_url" \
+    -H "Content-Type: application/x-www-form-urlencoded" \
+    -d "grant_type=client_credentials&client_id=$client_id&client_secret=$client_secret")
+
+  echo "$response" | python3 -c 'import sys,json; print(json.load(sys.stdin)["access_token"])' 2>/dev/null || echo ""
+}
+
+ADMIN_TOKEN=$(get_admin_token "$KEYCLOAK_TOKEN_URL" "$ADMIN_CLIENT_ID" "$ADMIN_CLIENT_SECRET")
+if [ -z "$ADMIN_TOKEN" ]; then
+  echo "ERROR: Failed to obtain admin token from Keycloak"
+  exit 1
+fi
+echo "Obtained admin token from Keycloak"
 
 # Use the service key pair (already provisioned in the container)
 TMPDIR_KEYS="$(pwd)/auth-service/keys"
@@ -40,7 +65,7 @@ echo ""
 echo "=== Step 1: Create registration code (admin) ==="
 HTTP=$(curl -sk -o /tmp/e2e_create_code.json -w "%{http_code}" \
   -X POST "$BASE/api/v1/admin/registration-codes" \
-  -u "$ADMIN_CREDS" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d "{\"userId\": \"$USER_ID\", \"name\": \"$DEVICE_NAME\", \"activationCode\": \"$ACTIVATION_CODE\"}")
 assert_http "Create registration code" "201" "$HTTP"
@@ -53,7 +78,7 @@ echo ""
 echo "=== Step 2: List registration codes — new code appears as unused ==="
 HTTP=$(curl -sk -o /tmp/e2e_list_codes.json -w "%{http_code}" \
   -X GET "$BASE/api/v1/admin/registration-codes" \
-  -u "$ADMIN_CREDS")
+  -H "Authorization: Bearer $ADMIN_TOKEN")
 assert_http "List registration codes" "200" "$HTTP"
 USED=$(python3 -c "
 import json
@@ -89,7 +114,7 @@ echo ""
 echo "=== Step 4: Registration code is now marked used ==="
 HTTP=$(curl -sk -o /tmp/e2e_list_codes2.json -w "%{http_code}" \
   -X GET "$BASE/api/v1/admin/registration-codes" \
-  -u "$ADMIN_CREDS")
+  -H "Authorization: Bearer $ADMIN_TOKEN")
 assert_http "List registration codes after register" "200" "$HTTP"
 USED=$(python3 -c "
 import json
@@ -180,7 +205,7 @@ NEW_USER_ID="e2e-dup-user-$$"
 NEW_ACTIVATION_CODE="dup-code-$$"
 curl -sk -o /dev/null \
   -X POST "$BASE/api/v1/admin/registration-codes" \
-  -u "$ADMIN_CREDS" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d "{\"userId\": \"$NEW_USER_ID\", \"name\": \"Dup Test\", \"activationCode\": \"$NEW_ACTIVATION_CODE\"}"
 HTTP=$(curl -sk -o /tmp/e2e_dup.json -w "%{http_code}" \
@@ -205,7 +230,7 @@ echo "=== Step 10: Delete device via admin API ==="
 # Find the device's internal UUID
 HTTP=$(curl -sk -o /tmp/e2e_list_devices.json -w "%{http_code}" \
   -X GET "$BASE/api/v1/admin/devices" \
-  -u "$ADMIN_CREDS")
+  -H "Authorization: Bearer $ADMIN_TOKEN")
 assert_http "List devices" "200" "$HTTP"
 DEVICE_UUID=$(python3 -c "
 import json
@@ -218,7 +243,7 @@ if [ -z "$DEVICE_UUID" ]; then
 else
   HTTP=$(curl -sk -o /dev/null -w "%{http_code}" \
     -X DELETE "$BASE/api/v1/admin/devices/$DEVICE_UUID" \
-    -u "$ADMIN_CREDS")
+    -H "Authorization: Bearer $ADMIN_TOKEN")
   assert_http "Delete device" "204" "$HTTP"
 fi
 

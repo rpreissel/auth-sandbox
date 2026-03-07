@@ -170,17 +170,49 @@ async function request<T>(
 
 export class AuthServiceClient {
   private readonly base: string;
-  private readonly adminAuth: string;
+  private readonly keycloakTokenUrl: string;
+  private readonly adminClientId: string;
+  private readonly adminClientSecret: string;
+  private adminToken: string | null = null;
+  private tokenExpiry: number = 0;
 
   constructor(
     base = process.env["E2E_AUTH_BASE"] ?? "https://auth-service.localhost:8443",
-    adminUsername = process.env["E2E_ADMIN_USERNAME"] ?? "admin",
-    adminPassword = process.env["E2E_ADMIN_PASSWORD"] ?? ""
+    keycloakTokenUrl = process.env["KEYCLOAK_ADMIN_TOKEN_ENDPOINT"] ?? "http://keycloak:8080/realms/auth-sandbox/protocol/openid-connect/token",
+    adminClientId = process.env["KEYCLOAK_ADMIN_CLIENT_ID"] ?? "device-login-admin",
+    adminClientSecret = process.env["KEYCLOAK_ADMIN_CLIENT_SECRET"] ?? ""
   ) {
     this.base = base;
-    this.adminAuth =
-      "Basic " +
-      Buffer.from(`${adminUsername}:${adminPassword}`).toString("base64");
+    this.keycloakTokenUrl = keycloakTokenUrl;
+    this.adminClientId = adminClientId;
+    this.adminClientSecret = adminClientSecret;
+  }
+
+  private async getAdminToken(): Promise<string> {
+    if (this.adminToken && Date.now() < this.tokenExpiry - 30000) {
+      return this.adminToken;
+    }
+
+    const body = new URLSearchParams({
+      grant_type: "client_credentials",
+      client_id: this.adminClientId,
+      client_secret: this.adminClientSecret,
+    });
+
+    const response = await fetch(this.keycloakTokenUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: body.toString(),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to get admin token: ${response.status} ${await response.text()}`);
+    }
+
+    const json = await response.json() as { access_token: string; expires_in: number };
+    this.adminToken = json.access_token;
+    this.tokenExpiry = Date.now() + json.expires_in * 1000;
+    return this.adminToken;
   }
 
   // --- Admin ------------------------------------------------------------------
@@ -188,60 +220,66 @@ export class AuthServiceClient {
   async createRegistrationCode(
     req: CreateRegistrationCodeRequest
   ): Promise<HttpResponse<AdminRegistrationCodeResponse>> {
+    const token = await this.getAdminToken();
     return request<AdminRegistrationCodeResponse>(
       "POST",
       `${this.base}/api/v1/admin/registration-codes`,
       req,
-      { Authorization: this.adminAuth }
+      { Authorization: `Bearer ${token}` }
     );
   }
 
   async listRegistrationCodes(): Promise<
     HttpResponse<AdminRegistrationCodeResponse[]>
   > {
+    const token = await this.getAdminToken();
     return request<AdminRegistrationCodeResponse[]>(
       "GET",
       `${this.base}/api/v1/admin/registration-codes`,
       undefined,
-      { Authorization: this.adminAuth }
+      { Authorization: `Bearer ${token}` }
     );
   }
 
   async deleteRegistrationCode(
     id: string
   ): Promise<HttpResponse<unknown>> {
+    const token = await this.getAdminToken();
     return request<unknown>(
       "DELETE",
       `${this.base}/api/v1/admin/registration-codes/${id}`,
       undefined,
-      { Authorization: this.adminAuth }
+      { Authorization: `Bearer ${token}` }
     );
   }
 
   async listDevices(): Promise<HttpResponse<AdminDeviceResponse[]>> {
+    const token = await this.getAdminToken();
     return request<AdminDeviceResponse[]>(
       "GET",
       `${this.base}/api/v1/admin/devices`,
       undefined,
-      { Authorization: this.adminAuth }
+      { Authorization: `Bearer ${token}` }
     );
   }
 
   async deleteDevice(id: string): Promise<HttpResponse<unknown>> {
+    const token = await this.getAdminToken();
     return request<unknown>(
       "DELETE",
       `${this.base}/api/v1/admin/devices/${id}`,
       undefined,
-      { Authorization: this.adminAuth }
+      { Authorization: `Bearer ${token}` }
     );
   }
 
   async cleanupExpiredCodes(): Promise<HttpResponse<CleanupResult>> {
+    const token = await this.getAdminToken();
     return request<CleanupResult>(
       "POST",
       `${this.base}/api/v1/admin/registration-codes/cleanup`,
       undefined,
-      { Authorization: this.adminAuth }
+      { Authorization: `Bearer ${token}` }
     );
   }
 

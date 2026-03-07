@@ -15,3 +15,9 @@ export interface CmsPageRequest {
 }
 
 export type StatusKind = 'idle' | 'pending' | 'success' | 'error';
+
+export interface OidcTokens {
+  access_token: string;
+  id_token: string;
+  refresh_token: string;
+}
