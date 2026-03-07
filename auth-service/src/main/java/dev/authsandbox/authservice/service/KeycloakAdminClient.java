@@ -191,59 +191,6 @@ public class KeycloakAdminClient {
                 .anyMatch(c -> "password".equals(c.get("type")));
     }
 
-    /**
-     * Adds a required action to the given Keycloak user, if not already present.
-     * Uses the Admin REST API: PUT /admin/realms/{realm}/users/{id}
-     * with a user representation containing the updated requiredActions list.
-     *
-     * @param keycloakUserId the Keycloak-internal user UUID
-     * @param action         the required-action string, e.g. "UPDATE_PASSWORD"
-     */
-    public void addRequiredAction(String keycloakUserId, String action) {
-        String adminToken = getAdminToken();
-
-        @SuppressWarnings("unchecked")
-        Map<String, Object> user = restClient.get()
-                .uri(userUrl(keycloakUserId))
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
-                .retrieve()
-                .onStatus(status -> !status.is2xxSuccessful(), (req, resp) -> {
-                    throw new KeycloakUpstreamException(
-                            "Failed to fetch user '" + keycloakUserId + "': " + resp.getStatusCode());
-                })
-                .body(Map.class);
-
-        if (user == null) {
-            throw new KeycloakUpstreamException("User not found: " + keycloakUserId);
-        }
-
-        @SuppressWarnings("unchecked")
-        List<String> existingActions = (List<String>) user.getOrDefault("requiredActions", List.of());
-        if (existingActions.contains(action)) {
-            log.debug("User '{}' already has required action '{}'", keycloakUserId, action);
-            return;
-        }
-
-        List<String> updatedActions = new java.util.ArrayList<>(existingActions);
-        updatedActions.add(action);
-
-        Map<String, Object> update = Map.of("requiredActions", updatedActions);
-
-        restClient.put()
-                .uri(userUrl(keycloakUserId))
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(update)
-                .retrieve()
-                .onStatus(status -> !status.is2xxSuccessful(), (req, resp) -> {
-                    throw new KeycloakUpstreamException(
-                            "Failed to update required actions for user '" + keycloakUserId + "': " + resp.getStatusCode());
-                })
-                .toBodilessEntity();
-
-        log.info("Added required action '{}' to user '{}'", action, keycloakUserId);
-    }
-
     // -----------------------------------------------------------------------
     // Private helpers
     // -----------------------------------------------------------------------
