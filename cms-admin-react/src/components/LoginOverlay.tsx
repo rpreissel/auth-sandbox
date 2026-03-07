@@ -1,20 +1,10 @@
-interface Props {
-  onLogin: () => void;
-}
+import { buildAuthUrl } from '../services/oidc';
 
-export function LoginOverlay({ onLogin }: Props) {
-  const [loading, setLoading] = useState(false);
-
+export function LoginOverlay() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
-    try {
-      onLogin();
-    } catch (err) {
-      console.error('Login failed:', err);
-    } finally {
-      setLoading(false);
-    }
+    const authUrl = await buildAuthUrl();
+    window.location.href = authUrl;
   }
 
   return (
@@ -25,8 +15,8 @@ export function LoginOverlay({ onLogin }: Props) {
           <p style={{ marginBottom: '1rem', color: '#666' }}>
             Click the button below to authenticate with your identity provider.
           </p>
-          <button type="submit" className="btn btn-primary" disabled={loading}>
-            {loading ? 'Redirecting...' : 'Login with OIDC'}
+          <button type="submit" className="btn btn-primary">
+            Login with OIDC
           </button>
         </form>
       </div>

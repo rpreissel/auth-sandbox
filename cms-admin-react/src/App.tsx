@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react';
 import type { CmsPage, CmsPageRequest, StatusKind, OidcTokens } from './types';
-import { api, ApiError } from './services/api';
+import { api } from './services/api';
+import { ApiError } from '@auth-sandbox/utils';
 import { LoginOverlay } from './components/LoginOverlay';
 import { PagesTab } from './components/PagesTab';
-import { getTokens, exchangeCode, logout as oidcLogout, buildAuthUrl } from './services/oidc';
-
-const TOKEN_PROXY_PATH = '/api/token';
+import { getTokens, exchangeCode, logout as oidcLogout } from './services/oidc';
 
 export default function App() {
   const [accessToken, setAccessToken] = useState<string | null>(null);
@@ -32,7 +31,7 @@ export default function App() {
           setTokens(newTokens);
           setIsCallback(false);
           setStatus({ text: 'Authenticated', kind: 'success' });
-          window.history.replaceState({}, '', '/');
+          window.history.replaceState({}, '', '/cms-admin/');
           loadPages(newTokens.access_token);
         })
         .catch((err) => {
@@ -70,11 +69,6 @@ export default function App() {
       const msg = err instanceof Error ? err.message : String(err);
       setStatus({ text: msg, kind: 'error' });
     }
-  }
-
-  async function handleLogin() {
-    const authUrl = await buildAuthUrl();
-    window.location.href = authUrl;
   }
 
   async function handleLogout() {
@@ -116,9 +110,14 @@ export default function App() {
     }
   }
 
+  async function handleRefresh() {
+    if (!accessToken) return;
+    await loadPages(accessToken);
+  }
+
   return (
     <>
-      {!accessToken && !isCallback && <LoginOverlay onLogin={handleLogin} />}
+      {!accessToken && !isCallback && <LoginOverlay />}
 
       <div className="app-shell">
         <header>
@@ -145,8 +144,10 @@ export default function App() {
           {accessToken && (
             <PagesTab
               pages={pages}
+              onRefresh={handleRefresh}
               onCreate={handleCreatePage}
               onDelete={handleDeletePage}
+              count={pages.length}
             />
           )}
         </main>

@@ -1,3 +1,4 @@
+import { handleApiResponse } from '@auth-sandbox/utils';
 import type { OidcTokens } from '../types';
 
 const KEYCLOAK_AUTH_ENDPOINT = import.meta.env.VITE_KEYCLOAK_AUTH_ENDPOINT || 'https://keycloak.localhost:8443/realms/auth-sandbox/protocol/openid-connect/auth';
@@ -90,11 +91,7 @@ export async function exchangeCode(
     body:    body.toString(),
   });
 
-  if (!resp.ok) {
-    throw new Error(`Token exchange failed: ${resp.status} ${await resp.text()}`);
-  }
-
-  const json = await resp.json() as Record<string, unknown>;
+  const json = await handleApiResponse<Record<string, unknown>>(resp);
   const tokens: OidcTokens = {
     access_token:  json['access_token'] as string,
     id_token:      json['id_token'] as string,
@@ -117,11 +114,7 @@ export async function refreshTokens(refreshToken: string): Promise<OidcTokens> {
     body:    body.toString(),
   });
 
-  if (!resp.ok) {
-    throw new Error(`Token refresh failed: ${resp.status}`);
-  }
-
-  const json = await resp.json() as Record<string, unknown>;
+  const json = await handleApiResponse<Record<string, unknown>>(resp);
   const tokens: OidcTokens = {
     access_token:  json['access_token'] as string,
     id_token:      json['id_token'] as string,
