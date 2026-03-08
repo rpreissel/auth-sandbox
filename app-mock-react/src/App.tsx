@@ -65,7 +65,7 @@ export default function App() {
     log('Passwort-Einrichtung erforderlich.', 'warn');
   }
 
-  function handlePasswordSet(t: OidcTokens) {
+  function handlePasswordSet(_t: OidcTokens) {
     setScreen('authenticated');
     log('Passwort gesetzt, angemeldet.', 'ok');
   }
