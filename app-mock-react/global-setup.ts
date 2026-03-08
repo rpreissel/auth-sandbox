@@ -46,11 +46,15 @@ async function globalSetup() {
 
   const envVars = parseDotEnv(path.join(REPO_ROOT, '.env'));
 
+  // Override keycloak URL to use localhost instead of internal hostname
+  const keycloakUrl = 'https://keycloak.localhost:8443';
+
   process.env['E2E_AUTH_BASE'] = 'https://auth-service.localhost:8443';
-  process.env['E2E_KEYCLOAK_BASE'] = 'https://keycloak.localhost:8443';
+  process.env['E2E_KEYCLOAK_BASE'] = keycloakUrl;
   process.env['E2E_ADMIN_USERNAME'] = 'admin';
   process.env['E2E_ADMIN_PASSWORD'] = envVars['KEYCLOAK_ADMIN_PASSWORD'] ?? 'admin-password';
   process.env['E2E_CA_CERT_PATH'] = caCertPath;
+  process.env['KEYCLOAK_ADMIN_TOKEN_ENDPOINT'] = keycloakUrl + '/realms/auth-sandbox/protocol/openid-connect/token';
 }
 
 export default globalSetup;
