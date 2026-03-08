@@ -193,14 +193,14 @@ public class KeycloakAdminClient {
 
     /**
      * Sets a password credential for the given Keycloak user.
-     * Uses the Admin REST API: POST /admin/realms/{realm}/users/{id}/credentials
+     * Uses the Admin REST API: PUT /admin/realms/{realm}/users/{id}/reset-password
      *
      * @param keycloakUserId the Keycloak-internal user UUID
      * @param password       the new password to set
      */
     public void setPassword(String keycloakUserId, String password) {
         String adminToken = getAdminToken();
-        String url = userUrl(keycloakUserId) + "/credentials";
+        String url = userUrl(keycloakUserId) + "/reset-password";
 
         Map<String, Object> credential = Map.of(
                 "type", "password",
@@ -208,7 +208,7 @@ public class KeycloakAdminClient {
                 "temporary", false
         );
 
-        restClient.post()
+        restClient.put()
                 .uri(url)
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
                 .contentType(MediaType.APPLICATION_JSON)
