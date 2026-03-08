@@ -2,6 +2,7 @@ package dev.authsandbox.authservice.service;
 
 import dev.authsandbox.authservice.config.ChallengeProperties;
 import dev.authsandbox.authservice.dto.KeycloakTokenResponse;
+import dev.authsandbox.authservice.dto.LoginResponse;
 import dev.authsandbox.authservice.dto.StartLoginRequest;
 import dev.authsandbox.authservice.dto.StartLoginResponse;
 import dev.authsandbox.authservice.dto.VerifyChallengeRequest;
@@ -34,6 +35,7 @@ public class AuthService {
     private final ChallengeRepository challengeRepository;
     private final JwtService jwtService;
     private final KeycloakAuthClient keycloakAuthClient;
+    private final KeycloakAdminClient keycloakAdminClient;
     private final ChallengeProperties challengeProperties;
 
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
@@ -72,7 +74,7 @@ public class AuthService {
     }
 
     @Transactional
-    public KeycloakTokenResponse verifyChallenge(VerifyChallengeRequest request) {
+    public LoginResponse verifyChallenge(VerifyChallengeRequest request) {
         Challenge challenge = challengeRepository.findByNonce(request.nonce())
                 .orElseThrow(() -> new IllegalArgumentException("Invalid nonce"));
 
@@ -113,7 +115,21 @@ public class AuthService {
         KeycloakTokenResponse kcTokens = keycloakAuthClient.authenticate(assertionToken);
         log.info("Authentication successful for device '{}'", device.getDeviceId());
 
-        return kcTokens;
+        String requiredAction = null;
+        if (device.getKeycloakUserId() != null && !keycloakAdminClient.hasPassword(device.getKeycloakUserId())) {
+            requiredAction = "SET_PASSWORD";
+            log.info("User '{}' has no password, requiring SET_PASSWORD action", userId);
+        }
+
+        return new LoginResponse(
+                kcTokens.accessToken(),
+                kcTokens.idToken(),
+                kcTokens.refreshToken(),
+                kcTokens.expiresIn(),
+                kcTokens.tokenType(),
+                kcTokens.scope(),
+                requiredAction
+        );
     }
 
     private boolean verifySignature(String publicKeyPem, String challengeValue, String signatureBase64) {

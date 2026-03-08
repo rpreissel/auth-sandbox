@@ -9,12 +9,13 @@ interface Props {
   binding: DeviceBinding;
   privateKey: CryptoKey;
   onLoggedIn: (tokens: OidcTokens) => void;
+  onPasswordRequired: (tokens: OidcTokens) => void;
   onUnregister: () => void;
   log: (msg: string, level?: LogEntry['level']) => void;
   autoLogin?: boolean;
 }
 
-export default function HomeScreen({ binding, privateKey, onLoggedIn, onUnregister, log, autoLogin }: Props) {
+export default function HomeScreen({ binding, privateKey, onLoggedIn, onPasswordRequired, onUnregister, log, autoLogin }: Props) {
   const [busy, setBusy]                     = useState(false);
   const [showBio, setShowBio]               = useState(false);
   const [error, setError]                   = useState('');
@@ -50,8 +51,13 @@ export default function HomeScreen({ binding, privateKey, onLoggedIn, onUnregist
 
       log('Verifiziere…', 'info');
       const tokens = await verifyLogin(challenge.nonce, signature);
-      log('Erfolgreich authentifiziert.', 'ok');
-      onLoggedIn(tokens);
+      if (tokens.required_action === 'SET_PASSWORD') {
+        log('Passwort-Einrichtung erforderlich.', 'warn');
+        onPasswordRequired(tokens);
+      } else {
+        log('Erfolgreich authentifiziert.', 'ok');
+        onLoggedIn(tokens);
+      }
     } catch (err) {
       const msg = (err as Error).message;
       setError(msg);

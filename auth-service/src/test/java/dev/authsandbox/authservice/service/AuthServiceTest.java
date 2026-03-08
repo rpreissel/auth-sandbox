@@ -1,6 +1,8 @@
 package dev.authsandbox.authservice.service;
 
 import dev.authsandbox.authservice.config.ChallengeProperties;
+import dev.authsandbox.authservice.dto.KeycloakTokenResponse;
+import dev.authsandbox.authservice.dto.LoginResponse;
 import dev.authsandbox.authservice.dto.StartLoginRequest;
 import dev.authsandbox.authservice.dto.StartLoginResponse;
 import dev.authsandbox.authservice.dto.VerifyChallengeRequest;
@@ -33,6 +35,7 @@ class AuthServiceTest {
     @Mock private ChallengeRepository challengeRepository;
     @Mock private JwtService jwtService;
     @Mock private KeycloakAuthClient keycloakAuthClient;
+    @Mock private KeycloakAdminClient keycloakAdminClient;
 
     private AuthService authService;
     private ChallengeProperties challengeProperties;
@@ -53,7 +56,7 @@ class AuthServiceTest {
     @BeforeEach
     void setUp() {
         challengeProperties = new ChallengeProperties(120L);
-        authService = new AuthService(deviceRepository, challengeRepository, jwtService, keycloakAuthClient, challengeProperties);
+        authService = new AuthService(deviceRepository, challengeRepository, jwtService, keycloakAuthClient, keycloakAdminClient, challengeProperties);
     }
 
     // -----------------------------------------------------------------------
@@ -185,6 +188,70 @@ class AuthServiceTest {
         authService.purgeExpiredChallenges();
 
         verify(challengeRepository).deleteExpiredChallenges(any(OffsetDateTime.class));
+    }
+
+    // -----------------------------------------------------------------------
+    // verifyChallenge - requiredAction tests
+    // -----------------------------------------------------------------------
+
+    @Test
+    void verifyChallenge_returnsNullRequiredAction_whenUserHasPassword() throws Exception {
+        String challengeValue = "aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899";
+        Challenge challenge = Challenge.builder()
+                .deviceId("dev-006")
+                .challengeValue(challengeValue)
+                .nonce("nonce-004")
+                .expiresAt(OffsetDateTime.now().plusSeconds(60))
+                .used(false)
+                .build();
+        Device device = Device.builder()
+                .deviceId("dev-006")
+                .userId("user-006")
+                .name("Test Device 6")
+                .publicKey(pemPublicKey())
+                .keycloakUserId("kc-user-006")
+                .build();
+
+        when(challengeRepository.findByNonce("nonce-004")).thenReturn(Optional.of(challenge));
+        when(deviceRepository.findByDeviceId("dev-006")).thenReturn(Optional.of(device));
+        lenient().when(keycloakAdminClient.hasPassword("kc-user-006")).thenReturn(true);
+        when(keycloakAuthClient.authenticate(any())).thenReturn(
+                new KeycloakTokenResponse("access", "id", "refresh", 300, "Bearer", "openid"));
+
+        LoginResponse response = authService.verifyChallenge(
+                new VerifyChallengeRequest("nonce-004", signChallenge(challengeValue)));
+
+        assertThat(response.requiredAction()).isNull();
+    }
+
+    @Test
+    void verifyChallenge_returnsSetPasswordRequiredAction_whenUserHasNoPassword() throws Exception {
+        String challengeValue = "aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899";
+        Challenge challenge = Challenge.builder()
+                .deviceId("dev-007")
+                .challengeValue(challengeValue)
+                .nonce("nonce-005")
+                .expiresAt(OffsetDateTime.now().plusSeconds(60))
+                .used(false)
+                .build();
+        Device device = Device.builder()
+                .deviceId("dev-007")
+                .userId("user-007")
+                .name("Test Device 7")
+                .publicKey(pemPublicKey())
+                .keycloakUserId("kc-user-007")
+                .build();
+
+        when(challengeRepository.findByNonce("nonce-005")).thenReturn(Optional.of(challenge));
+        when(deviceRepository.findByDeviceId("dev-007")).thenReturn(Optional.of(device));
+        when(keycloakAdminClient.hasPassword("kc-user-007")).thenReturn(false);
+        when(keycloakAuthClient.authenticate(any())).thenReturn(
+                new KeycloakTokenResponse("access", "id", "refresh", 300, "Bearer", "openid"));
+
+        LoginResponse response = authService.verifyChallenge(
+                new VerifyChallengeRequest("nonce-005", signChallenge(challengeValue)));
+
+        assertThat(response.requiredAction()).isEqualTo("SET_PASSWORD");
     }
 
     // -----------------------------------------------------------------------

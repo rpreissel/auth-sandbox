@@ -1,6 +1,6 @@
 // ── Domain types ──────────────────────────────────────────────────
 
-export type Screen = 'unregistered' | 'home' | 'authenticated';
+export type Screen = 'unregistered' | 'home' | 'set-password' | 'authenticated';
 
 export interface DeviceBinding {
   deviceId: string;
@@ -22,6 +22,7 @@ export interface OidcTokens {
   token_type: string;
   expires_in: number;
   scope: string;
+  required_action?: string | null;
 }
 
 export interface LogEntry {

@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { parseJwt } from '../services/crypto';
-import { refreshTokens, initiateTransfer, fetchUserinfo, getPasswordStatus } from '../services/api';
+import { refreshTokens, initiateTransfer, fetchUserinfo } from '../services/api';
 import { Spinner } from '../components/ui';
-import PasswordModal from '../components/PasswordModal';
 import type { OidcTokens, LogEntry } from '../types';
 
 interface Props {
@@ -23,25 +22,6 @@ export default function AuthenticatedScreen({ tokens, onTokensRefreshed, onLogou
   const [transferred, setTransferred]     = useState(false);
   const [userinfoBusy, setUserinfoBusy]   = useState(false);
   const [userinfoData, setUserinfoData]   = useState<Record<string, unknown> | null>(null);
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [passwordCheckDone, setPasswordCheckDone] = useState(false);
-
-  // Check password status on mount
-  useEffect(() => {
-    if (passwordCheckDone) return;
-    (async () => {
-      try {
-        const status = await getPasswordStatus(tokens.access_token);
-        if (!status.hasPassword) {
-          setShowPasswordModal(true);
-        }
-      } catch (err) {
-        // Ignore - user can proceed without password check
-        log('Passwort-Status konnte nicht geprüft werden: ' + (err as Error).message, 'warn');
-      }
-      setPasswordCheckDone(true);
-    })();
-  }, [tokens.access_token, passwordCheckDone, log]);
 
   // Tick every second so secsLeft / expired stay accurate in real time.
   const [, tick] = useState(0);
@@ -120,14 +100,6 @@ export default function AuthenticatedScreen({ tokens, onTokensRefreshed, onLogou
 
   return (
     <div className="flex flex-col gap-5">
-      {showPasswordModal && (
-        <PasswordModal
-          accessToken={tokens.access_token}
-          onPasswordSet={() => setShowPasswordModal(false)}
-          onSkip={() => setShowPasswordModal(false)}
-        />
-      )}
-
       {/* User card */}
       <div className="text-center pt-4 flex flex-col items-center">
         <div className="w-16 h-16 rounded-full bg-green-900/40 border border-green-700/40 flex items-center justify-center text-4xl mb-3 leading-none">

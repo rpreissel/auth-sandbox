@@ -1,6 +1,7 @@
 package dev.authsandbox.authservice.controller;
 
 import dev.authsandbox.authservice.dto.KeycloakTokenResponse;
+import dev.authsandbox.authservice.dto.LoginResponse;
 import dev.authsandbox.authservice.dto.RefreshTokenRequest;
 import dev.authsandbox.authservice.dto.StartLoginRequest;
 import dev.authsandbox.authservice.dto.StartLoginResponse;
@@ -38,7 +39,7 @@ public class AuthController {
      * receives full OIDC tokens from Keycloak.
      */
     @PostMapping("/login/verify")
-    public ResponseEntity<KeycloakTokenResponse> verifyChallenge(
+    public ResponseEntity<LoginResponse> verifyChallenge(
             @Valid @RequestBody VerifyChallengeRequest request) {
         return ResponseEntity.ok(authService.verifyChallenge(request));
     }

@@ -4,6 +4,7 @@ import ActivityLog from './components/ActivityLog';
 import UnregisteredScreen from './screens/UnregisteredScreen';
 import HomeScreen from './screens/HomeScreen';
 import AuthenticatedScreen from './screens/AuthenticatedScreen';
+import SetPasswordScreen from './screens/SetPasswordScreen';
 import { loadBinding, loadPrivateKey, clearBinding, clearPrivateKey } from './services/storage';
 import { setBaseUrl } from './services/api';
 import type { DeviceBinding, OidcTokens, Screen } from './types';
@@ -55,6 +56,18 @@ export default function App() {
     setTokens(t);
     setAutoLogin(false);
     setScreen('authenticated');
+  }
+
+  function handlePasswordRequired(t: OidcTokens) {
+    setTokens(t);
+    setAutoLogin(false);
+    setScreen('set-password');
+    log('Passwort-Einrichtung erforderlich.', 'warn');
+  }
+
+  function handlePasswordSet(t: OidcTokens) {
+    setScreen('authenticated');
+    log('Passwort gesetzt, angemeldet.', 'ok');
   }
 
   function handleLogout() {
@@ -117,9 +130,17 @@ export default function App() {
               binding={binding}
               privateKey={privateKey}
               onLoggedIn={handleLoggedIn}
+              onPasswordRequired={handlePasswordRequired}
               onUnregister={handleUnregister}
               log={log}
               autoLogin={autoLogin}
+            />
+          )}
+          {screen === 'set-password' && tokens && (
+            <SetPasswordScreen
+              tokens={tokens}
+              onPasswordSet={handlePasswordSet}
+              log={log}
             />
           )}
           {screen === 'authenticated' && tokens && (
@@ -144,6 +165,7 @@ function StatusPill({ screen }: { screen: Screen }) {
   const map: Record<Screen, { label: string; cls: string; dot: string }> = {
     unregistered:  { label: 'Nicht registriert', cls: 'bg-[--color-surface2] text-[--color-text-dim]', dot: 'bg-[--color-text-dim]' },
     home:          { label: 'Registriert',        cls: 'bg-[--color-accent]/15 text-[--color-accent]', dot: 'bg-[--color-accent]' },
+    'set-password':{ label: 'Passwort setzen',    cls: 'bg-yellow-950/60 text-yellow-400',             dot: 'bg-yellow-500 animate-pulse' },
     authenticated: { label: 'Angemeldet',          cls: 'bg-green-950/60 text-green-400',               dot: 'bg-green-500 animate-pulse' },
   };
   const { label, cls, dot } = map[screen];
