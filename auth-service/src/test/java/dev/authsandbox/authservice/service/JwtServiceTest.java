@@ -1,7 +1,6 @@
 package dev.authsandbox.authservice.service;
 
 import dev.authsandbox.authservice.config.JwtProperties;
-import dev.authsandbox.authservice.config.KeycloakProperties;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import org.junit.jupiter.api.BeforeEach;
@@ -19,7 +18,6 @@ class JwtServiceTest {
     private JwtService jwtService;
     private KeyPair keyPair;
     private static final String ISSUER = "https://auth-service.test";
-    private static final String REALM_URL = "https://keycloak.test/realms/test";
 
     @BeforeEach
     void setUp() throws Exception {
@@ -33,70 +31,12 @@ class JwtServiceTest {
                 ISSUER,
                 60L
         );
-        KeycloakProperties keycloakProperties = new KeycloakProperties(
-                REALM_URL,
-                "https://keycloak.test/auth",
-                "https://keycloak.test/auth-public",
-                "https://keycloak.test/token",
-                "https://keycloak.test/par",
-                "https://keycloak.test/introspect",
-                "device-login-client",
-                "secret",
-                "https://device-login.test/callback",
-                "https://sso-proxy.test/callback",
-                "openid profile",
-                60L
-        );
-        jwtService = new JwtService(keyPair, jwtProperties, keycloakProperties);
+        jwtService = new JwtService(keyPair, jwtProperties);
     }
 
     // -----------------------------------------------------------------------
-    // Device-login tokens
+    // JWK Set
     // -----------------------------------------------------------------------
-
-    @Test
-    void issueKeycloakAssertionToken_returnsSignedToken() {
-        String token = jwtService.issueKeycloakAssertionToken("user-123", "2");
-
-        assertThat(token).isNotBlank();
-    }
-
-    @Test
-    void issueKeycloakAssertionToken_hasUniqueJti() {
-        String token1 = jwtService.issueKeycloakAssertionToken("user-123", "2");
-        String token2 = jwtService.issueKeycloakAssertionToken("user-123", "2");
-
-        Claims claims1 = Jwts.parser()
-                .verifyWith(keyPair.getPublic())
-                .build()
-                .parseSignedClaims(token1)
-                .getPayload();
-        Claims claims2 = Jwts.parser()
-                .verifyWith(keyPair.getPublic())
-                .build()
-                .parseSignedClaims(token2)
-                .getPayload();
-
-        assertThat(claims1.getId()).isNotBlank();
-        assertThat(claims2.getId()).isNotBlank();
-        assertThat(claims1.getId()).isNotEqualTo(claims2.getId());
-    }
-
-    @Test
-    void issueKeycloakAssertionToken_containsRequiredClaims() {
-        String token = jwtService.issueKeycloakAssertionToken("user-123", "2");
-
-        Claims claims = Jwts.parser()
-                .verifyWith(keyPair.getPublic())
-                .build()
-                .parseSignedClaims(token)
-                .getPayload();
-
-        assertThat(claims.getId()).isNotBlank();
-        assertThat(claims.getSubject()).isEqualTo("user-123");
-        assertThat(claims.getIssuer()).isEqualTo(ISSUER);
-        assertThat(claims.get("acr", String.class)).isEqualTo("2");
-    }
 
     @Test
     void toJwkSet_containsDeviceLoginKid() {
@@ -115,25 +55,6 @@ class JwtServiceTest {
     // -----------------------------------------------------------------------
 
     @Test
-    void issueKeycloakAssertionToken_returnsSignedToken_forTransferFlow() {
-        String token = jwtService.issueKeycloakAssertionToken("user-456", "1");
-
-        assertThat(token).isNotBlank();
-    }
-
-    @Test
-    void toJwkSet_containsDeviceLoginKid_forTransferEndpoint() {
-        Map<String, Object> jwks = jwtService.toJwkSet();
-
-        assertThat(jwks).containsKey("keys");
-        @SuppressWarnings("unchecked")
-        var keys = (java.util.List<Map<String, Object>>) jwks.get("keys");
-        assertThat(keys).hasSize(1);
-        assertThat(keys.get(0)).containsEntry("kid", "device-login-key");
-        assertThat(keys.get(0)).containsEntry("kty", "RSA");
-    }
-
-    @Test
     void issueAndValidateTransferToken() {
         String sessionId = "550e8400-e29b-41d4-a716-446655440000";
         String token = jwtService.issueTransferToken("urn:ietf:params:oauth:request_uri:abc", sessionId);
@@ -142,7 +63,6 @@ class JwtServiceTest {
 
         assertThat(claims.getSubject()).isEqualTo("transfer");
         assertThat(claims.get("request_uri", String.class)).isEqualTo("urn:ietf:params:oauth:request_uri:abc");
-        // code_verifier is no longer embedded in the JWT — only the opaque session_id is present
         assertThat(claims.get("session_id", String.class)).isEqualTo(sessionId);
         assertThat(claims.get("code_verifier", String.class)).isNull();
     }

@@ -1,5 +1,6 @@
 package dev.authsandbox.authservice.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.authsandbox.authservice.config.ChallengeProperties;
 import dev.authsandbox.authservice.dto.KeycloakTokenResponse;
 import dev.authsandbox.authservice.dto.LoginResponse;
@@ -39,15 +40,17 @@ class AuthServiceTest {
 
     private AuthService authService;
     private ChallengeProperties challengeProperties;
+    private ObjectMapper objectMapper;
 
-    /** RSA key pair generated once per test class to avoid expensive generation per test. */
     private static KeyPair RSA_KEY_PAIR;
+    private static KeyPair ENC_KEY_PAIR;
 
     static {
         try {
             KeyPairGenerator gen = KeyPairGenerator.getInstance("RSA");
             gen.initialize(2048);
             RSA_KEY_PAIR = gen.generateKeyPair();
+            ENC_KEY_PAIR = gen.generateKeyPair();
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException(e);
         }
@@ -56,7 +59,8 @@ class AuthServiceTest {
     @BeforeEach
     void setUp() {
         challengeProperties = new ChallengeProperties(120L);
-        authService = new AuthService(deviceRepository, challengeRepository, jwtService, keycloakAuthClient, keycloakAdminClient, challengeProperties);
+        objectMapper = new ObjectMapper();
+        authService = new AuthService(deviceRepository, challengeRepository, jwtService, keycloakAuthClient, keycloakAdminClient, challengeProperties, objectMapper);
     }
 
     // -----------------------------------------------------------------------
@@ -64,26 +68,28 @@ class AuthServiceTest {
     // -----------------------------------------------------------------------
 
     @Test
-    void startLogin_returnsChallenge_forKnownDevice() {
+    void startLogin_returnsEncryptedResponse_forKnownDevice() {
         Device device = Device.builder()
-                .deviceId("dev-001")
                 .userId("user-001")
-                .name("Test Device")
+                .deviceName("Test Device")
+                .publicKeyHash("abc123")
                 .publicKey(pemPublicKey())
+                .encPubKey(Base64.getEncoder().encodeToString(ENC_KEY_PAIR.getPublic().getEncoded()))
                 .build();
-        when(deviceRepository.findByDeviceId("dev-001")).thenReturn(Optional.of(device));
+        when(deviceRepository.findByPublicKeyHash("abc123")).thenReturn(Optional.of(device));
         when(challengeRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        StartLoginResponse response = authService.startLogin(new StartLoginRequest("dev-001"));
+        StartLoginResponse response = authService.startLogin(new StartLoginRequest("abc123"));
 
         assertThat(response.nonce()).isNotBlank();
-        assertThat(response.challenge()).isNotBlank();
-        assertThat(response.expiresInSeconds()).isEqualTo(120L);
+        assertThat(response.encryptedKey()).isNotBlank();
+        assertThat(response.encryptedData()).isNotBlank();
+        assertThat(response.iv()).isNotBlank();
     }
 
     @Test
     void startLogin_throwsIllegalArgument_forUnknownDevice() {
-        when(deviceRepository.findByDeviceId("unknown")).thenReturn(Optional.empty());
+        when(deviceRepository.findByPublicKeyHash("unknown")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> authService.startLogin(new StartLoginRequest("unknown")))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -91,21 +97,22 @@ class AuthServiceTest {
     }
 
     @Test
-    void startLogin_persistsChallenge_withCorrectDeviceId() {
+    void startLogin_persistsChallenge_withCorrectUserId() {
         Device device = Device.builder()
-                .deviceId("dev-002")
                 .userId("user-002")
-                .name("Test Device 2")
+                .deviceName("Test Device 2")
+                .publicKeyHash("def456")
                 .publicKey(pemPublicKey())
+                .encPubKey(Base64.getEncoder().encodeToString(ENC_KEY_PAIR.getPublic().getEncoded()))
                 .build();
-        when(deviceRepository.findByDeviceId("dev-002")).thenReturn(Optional.of(device));
+        when(deviceRepository.findByPublicKeyHash("def456")).thenReturn(Optional.of(device));
         when(challengeRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        authService.startLogin(new StartLoginRequest("dev-002"));
+        authService.startLogin(new StartLoginRequest("def456"));
 
         ArgumentCaptor<Challenge> captor = ArgumentCaptor.forClass(Challenge.class);
         verify(challengeRepository).save(captor.capture());
-        assertThat(captor.getValue().getDeviceId()).isEqualTo("dev-002");
+        assertThat(captor.getValue().getUserId()).isEqualTo("user-002");
         assertThat(captor.getValue().getExpiresAt()).isAfter(OffsetDateTime.now());
     }
 
@@ -117,7 +124,7 @@ class AuthServiceTest {
     void verifyChallenge_throwsIllegalArgument_forUnknownNonce() {
         when(challengeRepository.findByNonce("bad-nonce")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> authService.verifyChallenge(new VerifyChallengeRequest("bad-nonce", "sig")))
+        assertThatThrownBy(() -> authService.verifyChallenge(buildValidVerifyRequest("bad-nonce")))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Invalid nonce");
     }
@@ -125,15 +132,14 @@ class AuthServiceTest {
     @Test
     void verifyChallenge_throwsIllegalArgument_forAlreadyUsedChallenge() {
         Challenge usedChallenge = Challenge.builder()
-                .deviceId("dev-003")
-                .challengeValue("deadbeef")
+                .userId("user-003")
                 .nonce("nonce-001")
                 .expiresAt(OffsetDateTime.now().plusSeconds(60))
                 .used(true)
                 .build();
         when(challengeRepository.findByNonce("nonce-001")).thenReturn(Optional.of(usedChallenge));
 
-        assertThatThrownBy(() -> authService.verifyChallenge(new VerifyChallengeRequest("nonce-001", "sig")))
+        assertThatThrownBy(() -> authService.verifyChallenge(buildValidVerifyRequest("nonce-001")))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Challenge already used");
     }
@@ -141,44 +147,34 @@ class AuthServiceTest {
     @Test
     void verifyChallenge_throwsIllegalArgument_forExpiredChallenge() {
         Challenge expired = Challenge.builder()
-                .deviceId("dev-004")
-                .challengeValue("aabbccdd")
+                .userId("user-004")
                 .nonce("nonce-002")
                 .expiresAt(OffsetDateTime.now().minusSeconds(1))
                 .used(false)
                 .build();
         when(challengeRepository.findByNonce("nonce-002")).thenReturn(Optional.of(expired));
 
-        assertThatThrownBy(() -> authService.verifyChallenge(new VerifyChallengeRequest("nonce-002", "sig")))
+        assertThatThrownBy(() -> authService.verifyChallenge(buildValidVerifyRequest("nonce-002")))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Challenge expired");
     }
 
     @Test
-    void verifyChallenge_throwsSecurityException_forInvalidSignature() {
-        String challengeValue = "aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899";
+    void verifyChallenge_delegatesAuthToKeycloak() throws Exception {
         Challenge challenge = Challenge.builder()
-                .deviceId("dev-005")
-                .challengeValue(challengeValue)
+                .userId("user-005")
                 .nonce("nonce-003")
                 .expiresAt(OffsetDateTime.now().plusSeconds(60))
                 .used(false)
                 .build();
-        Device device = Device.builder()
-                .deviceId("dev-005")
-                .userId("user-005")
-                .name("Test Device 5")
-                .publicKey(pemPublicKey())
-                .build();
         when(challengeRepository.findByNonce("nonce-003")).thenReturn(Optional.of(challenge));
-        when(deviceRepository.findByDeviceId("dev-005")).thenReturn(Optional.of(device));
+        when(keycloakAuthClient.authenticate(any())).thenReturn(
+                new KeycloakTokenResponse("access", "id", "refresh", 300, "Bearer", "openid"));
 
-        // A random base64url value — definitely not a valid signature over this challenge
-        String badSignature = Base64.getUrlEncoder().encodeToString("not-a-real-sig".getBytes(StandardCharsets.UTF_8));
+        LoginResponse response = authService.verifyChallenge(buildValidVerifyRequest("nonce-003"));
 
-        assertThatThrownBy(() -> authService.verifyChallenge(new VerifyChallengeRequest("nonce-003", badSignature)))
-                .isInstanceOf(SecurityException.class)
-                .hasMessage("Invalid signature");
+        assertThat(response.accessToken()).isEqualTo("access");
+        verify(keycloakAuthClient).authenticate(any());
     }
 
     @Test
@@ -188,70 +184,6 @@ class AuthServiceTest {
         authService.purgeExpiredChallenges();
 
         verify(challengeRepository).deleteExpiredChallenges(any(OffsetDateTime.class));
-    }
-
-    // -----------------------------------------------------------------------
-    // verifyChallenge - requiredAction tests
-    // -----------------------------------------------------------------------
-
-    @Test
-    void verifyChallenge_returnsNullRequiredAction_whenUserHasPassword() throws Exception {
-        String challengeValue = "aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899";
-        Challenge challenge = Challenge.builder()
-                .deviceId("dev-006")
-                .challengeValue(challengeValue)
-                .nonce("nonce-004")
-                .expiresAt(OffsetDateTime.now().plusSeconds(60))
-                .used(false)
-                .build();
-        Device device = Device.builder()
-                .deviceId("dev-006")
-                .userId("user-006")
-                .name("Test Device 6")
-                .publicKey(pemPublicKey())
-                .keycloakUserId("kc-user-006")
-                .build();
-
-        when(challengeRepository.findByNonce("nonce-004")).thenReturn(Optional.of(challenge));
-        when(deviceRepository.findByDeviceId("dev-006")).thenReturn(Optional.of(device));
-        lenient().when(keycloakAdminClient.hasPassword("kc-user-006")).thenReturn(true);
-        when(keycloakAuthClient.authenticate(any())).thenReturn(
-                new KeycloakTokenResponse("access", "id", "refresh", 300, "Bearer", "openid"));
-
-        LoginResponse response = authService.verifyChallenge(
-                new VerifyChallengeRequest("nonce-004", signChallenge(challengeValue)));
-
-        assertThat(response.requiredAction()).isNull();
-    }
-
-    @Test
-    void verifyChallenge_returnsSetPasswordRequiredAction_whenUserHasNoPassword() throws Exception {
-        String challengeValue = "aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899";
-        Challenge challenge = Challenge.builder()
-                .deviceId("dev-007")
-                .challengeValue(challengeValue)
-                .nonce("nonce-005")
-                .expiresAt(OffsetDateTime.now().plusSeconds(60))
-                .used(false)
-                .build();
-        Device device = Device.builder()
-                .deviceId("dev-007")
-                .userId("user-007")
-                .name("Test Device 7")
-                .publicKey(pemPublicKey())
-                .keycloakUserId("kc-user-007")
-                .build();
-
-        when(challengeRepository.findByNonce("nonce-005")).thenReturn(Optional.of(challenge));
-        when(deviceRepository.findByDeviceId("dev-007")).thenReturn(Optional.of(device));
-        when(keycloakAdminClient.hasPassword("kc-user-007")).thenReturn(false);
-        when(keycloakAuthClient.authenticate(any())).thenReturn(
-                new KeycloakTokenResponse("access", "id", "refresh", 300, "Bearer", "openid"));
-
-        LoginResponse response = authService.verifyChallenge(
-                new VerifyChallengeRequest("nonce-005", signChallenge(challengeValue)));
-
-        assertThat(response.requiredAction()).isEqualTo("SET_PASSWORD");
     }
 
     // -----------------------------------------------------------------------
@@ -265,12 +197,13 @@ class AuthServiceTest {
                 + "\n-----END PUBLIC KEY-----";
     }
 
-    /** Signs the given challenge hex string with the test RSA private key, returns base64url. */
-    @SuppressWarnings("unused")
-    static String signChallenge(String challengeHex) throws Exception {
-        Signature sig = Signature.getInstance("SHA256withRSA");
-        sig.initSign(RSA_KEY_PAIR.getPrivate());
-        sig.update(challengeHex.getBytes(StandardCharsets.UTF_8));
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(sig.sign());
+    private VerifyChallengeRequest buildValidVerifyRequest(String nonce) {
+        return new VerifyChallengeRequest(
+                nonce,
+                "encryptedKey",
+                "encryptedData",
+                "iv",
+                "signature"
+        );
     }
 }
