@@ -1,5 +1,6 @@
 package dev.authsandbox.authservice.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.authsandbox.authservice.config.ChallengeProperties;
 import dev.authsandbox.authservice.dto.KeycloakTokenResponse;
 import dev.authsandbox.authservice.dto.LoginResponse;
@@ -10,21 +11,27 @@ import dev.authsandbox.authservice.entity.Challenge;
 import dev.authsandbox.authservice.entity.Device;
 import dev.authsandbox.authservice.repository.ChallengeRepository;
 import dev.authsandbox.authservice.repository.DeviceRepository;
-import dev.authsandbox.authservice.security.KeyLoader;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import javax.crypto.Cipher;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.GCMParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
-import java.security.GeneralSecurityException;
+import java.security.KeyFactory;
 import java.security.PublicKey;
 import java.security.SecureRandom;
-import java.security.Signature;
+import java.security.spec.X509EncodedKeySpec;
+import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Base64;
 import java.util.HexFormat;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -37,40 +44,69 @@ public class AuthService {
     private final KeycloakAuthClient keycloakAuthClient;
     private final KeycloakAdminClient keycloakAdminClient;
     private final ChallengeProperties challengeProperties;
+    private final ObjectMapper objectMapper;
 
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
-    private static final String ACR_BIOMETRIC = "2";
 
     @Transactional
     @SuppressWarnings("null")
     public StartLoginResponse startLogin(StartLoginRequest request) {
-        Device device = deviceRepository.findByDeviceId(request.deviceId())
-                .orElseThrow(() -> new IllegalArgumentException(
-                        "Unknown device: " + request.deviceId()));
+        Device device = deviceRepository.findByPublicKeyHash(request.publicKeyHash())
+                .orElseThrow(() -> new IllegalArgumentException("Unknown device"));
 
-        byte[] challengeBytes = new byte[32];
-        SECURE_RANDOM.nextBytes(challengeBytes);
-        String challengeValue = HexFormat.of().formatHex(challengeBytes);
+        String encPubKeyB64 = device.getEncPubKey();
+        byte[] encPubKeyBytes = Base64.getDecoder().decode(encPubKeyB64);
+        PublicKey encPubKey;
+        try {
+            encPubKey = KeyFactory.getInstance("RSA")
+                    .generatePublic(new X509EncodedKeySpec(encPubKeyBytes));
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to parse encryption public key", e);
+        }
 
         byte[] nonceBytes = new byte[16];
         SECURE_RANDOM.nextBytes(nonceBytes);
         String nonce = HexFormat.of().formatHex(nonceBytes);
 
-        OffsetDateTime expiresAt = OffsetDateTime.now()
-                .plusSeconds(challengeProperties.expirationSeconds());
+        long exp = Instant.now().plusSeconds(challengeProperties.expirationSeconds()).getEpochSecond();
+        String payloadJson = String.format(
+                "{\"userId\":\"%s\",\"nonce\":\"%s\",\"exp\":%d}",
+                device.getUserId(), nonce, exp);
 
-        Challenge challenge = Challenge.builder()
-                .deviceId(device.getDeviceId())
-                .challengeValue(challengeValue)
-                .nonce(nonce)
-                .expiresAt(expiresAt)
-                .used(false)
-                .build();
+        byte[] aesKeyBytes = new byte[32];
+        SECURE_RANDOM.nextBytes(aesKeyBytes);
+        byte[] iv = new byte[12];
+        SECURE_RANDOM.nextBytes(iv);
+        SecretKey aesKey = new SecretKeySpec(aesKeyBytes, "AES");
 
-        challengeRepository.save(challenge);
-        log.debug("Created challenge with nonce '{}' for device '{}'", nonce, device.getDeviceId());
+        try {
+            Cipher aesCipher = Cipher.getInstance("AES/GCM/NoPadding");
+            aesCipher.init(Cipher.ENCRYPT_MODE, aesKey, new GCMParameterSpec(128, iv));
+            byte[] encryptedData = aesCipher.doFinal(payloadJson.getBytes(StandardCharsets.UTF_8));
 
-        return new StartLoginResponse(nonce, challengeValue, challengeProperties.expirationSeconds());
+            Cipher rsaCipher = Cipher.getInstance("RSA/ECB/OAEPWithSHA-256AndMGF1Padding");
+            rsaCipher.init(Cipher.ENCRYPT_MODE, encPubKey);
+            byte[] encryptedKey = rsaCipher.doFinal(aesKeyBytes);
+
+            Challenge challenge = Challenge.builder()
+                    .nonce(nonce)
+                    .userId(device.getUserId())
+                    .expiresAt(OffsetDateTime.ofInstant(Instant.ofEpochSecond(exp), ZoneOffset.UTC))
+                    .used(false)
+                    .build();
+
+            challengeRepository.save(challenge);
+            log.debug("Created challenge with nonce '{}' for device '{}'", nonce, device.getDeviceName());
+
+            return new StartLoginResponse(
+                    nonce,
+                    Base64.getEncoder().encodeToString(encryptedKey),
+                    Base64.getEncoder().encodeToString(encryptedData),
+                    Base64.getEncoder().encodeToString(iv)
+            );
+        } catch (Exception e) {
+            throw new RuntimeException("Encryption failed", e);
+        }
     }
 
     @Transactional
@@ -86,40 +122,34 @@ public class AuthService {
             throw new IllegalArgumentException("Challenge expired");
         }
 
-        Device device = deviceRepository.findByDeviceId(challenge.getDeviceId())
-                .orElseThrow(() -> new IllegalStateException(
-                        "Device not found for challenge: " + challenge.getDeviceId()));
-
-        boolean signatureValid = verifySignature(
-                device.getPublicKey(),
-                challenge.getChallengeValue(),
-                request.signature()
-        );
-
-        if (!signatureValid) {
-            throw new SecurityException("Invalid signature");
-        }
-
         challenge.setUsed(true);
         challengeRepository.save(challenge);
 
-        // The JWT sub must match the federated identity userId registered in Keycloak
-        // (createUserWithFederatedIdentity uses userId, not deviceId, as the external subject).
-        String userId = device.getUserId();
-        log.info("About to issue Keycloak assertion token for device '{}', userId='{}', keycloakUserId='{}'",
-                device.getDeviceId(), userId, device.getKeycloakUserId());
-        String assertionToken = jwtService.issueKeycloakAssertionToken(userId, ACR_BIOMETRIC);
-        log.info("Issued Keycloak assertion token for device '{}' (userId '{}')",
-                device.getDeviceId(), userId);
+        String userId = challenge.getUserId();
 
-        KeycloakTokenResponse kcTokens = keycloakAuthClient.authenticate(assertionToken);
-        log.info("Authentication successful for device '{}'", device.getDeviceId());
+        String tokenJson;
+        try {
+            tokenJson = objectMapper.writeValueAsString(Map.of(
+                    "type", "device",
+                    "sub", userId,
+                    "encryptedKey", request.encryptedKey(),
+                    "encryptedData", request.encryptedData(),
+                    "iv", request.iv(),
+                    "signature", request.signature()
+            ));
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to create login token", e);
+        }
+
+        String loginToken = Base64.getUrlEncoder().withoutPadding()
+                .encodeToString(tokenJson.getBytes(StandardCharsets.UTF_8));
+
+        log.info("Created login_token for userId '{}'", userId);
+
+        KeycloakTokenResponse kcTokens = keycloakAuthClient.authenticate(loginToken);
+        log.info("Authentication successful for userId '{}'", userId);
 
         String requiredAction = null;
-        if (device.getKeycloakUserId() != null && !keycloakAdminClient.hasPassword(device.getKeycloakUserId())) {
-            requiredAction = "SET_PASSWORD";
-            log.info("User '{}' has no password, requiring SET_PASSWORD action", userId);
-        }
 
         return new LoginResponse(
                 kcTokens.accessToken(),
@@ -132,34 +162,6 @@ public class AuthService {
         );
     }
 
-    private boolean verifySignature(String publicKeyPem, String challengeValue, String signatureBase64) {
-        try {
-            PublicKey publicKey = KeyLoader.parsePublicKey(publicKeyPem);
-
-            byte[] signatureBytes = Base64.getUrlDecoder().decode(signatureBase64);
-
-            Signature sig = Signature.getInstance("SHA256withRSA");
-            sig.initVerify(publicKey);
-            sig.update(challengeValue.getBytes(StandardCharsets.UTF_8));
-            return sig.verify(signatureBytes);
-        } catch (GeneralSecurityException e) {
-            // Crypto errors (bad key format, invalid signature encoding, etc.) are
-            // expected for invalid input — treat as a failed verification.
-            log.warn("Signature verification failed (crypto error): {}", e.getMessage());
-            return false;
-        } catch (IllegalArgumentException e) {
-            // Base64 decoding failure — malformed input from the client.
-            log.warn("Signature verification failed (encoding error): {}", e.getMessage());
-            return false;
-        }
-        // Any other unexpected exception (e.g. NullPointerException, programming bug)
-        // is intentionally NOT caught here so it propagates and surfaces as a 500 error.
-    }
-
-    /**
-     * Removes expired challenges from the database every 10 minutes.
-     * This prevents unbounded growth of the challenges table.
-     */
     @Scheduled(fixedRateString = "PT10M")
     @Transactional
     public void purgeExpiredChallenges() {

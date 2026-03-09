@@ -30,19 +30,17 @@ public class KeycloakAdminClient {
     }
 
     /**
-     * Creates a Keycloak user for the given userId as the username, then links it
-     * to the device-login IdP via a federated identity.
+     * Creates a Keycloak user for the given userId as the username.
      *
-     * @param userId      the user identifier used as both username and IdP subject
+     * @param userId      the user identifier used as both username
      * @param displayName optional full name split into first/last name in Keycloak;
      *                    pass {@code null} to leave first/last name empty
      * @return the Keycloak user ID (UUID string)
      */
-    public String createUserWithFederatedIdentity(String userId, String displayName) {
+    public String createUser(String userId, String displayName) {
         String adminToken = getAdminToken();
-        String keycloakUserId = createUser(adminToken, userId, displayName);
-        linkFederatedIdentity(adminToken, keycloakUserId, userId, adminProperties.idpAlias());
-        log.info("Created Keycloak user '{}' with federated identity for userId '{}'", keycloakUserId, userId);
+        String keycloakUserId = createUserInternal(adminToken, userId, displayName);
+        log.info("Created Keycloak user '{}' for userId '{}'", keycloakUserId, userId);
         return keycloakUserId;
     }
 
@@ -108,30 +106,6 @@ public class KeycloakAdminClient {
                 .toBodilessEntity();
 
         log.info("Deleted Keycloak user '{}'", keycloakUserId);
-    }
-
-    /**
-     * Ensures the given user has a federated identity link to the device-login IdP.
-     * If the link already exists, this is a no-op. If it doesn't exist, the link
-     * is created using the username as the IdP subject (matching the device JWT sub).
-     *
-     * @param username the Keycloak username (equals the userId)
-     */
-    public void ensureDeviceLoginFederatedIdentityLink(String username) {
-        String adminToken = getAdminToken();
-        String keycloakUserId = getUserIdByUsername(username)
-                .orElseThrow(() -> new KeycloakUpstreamException(
-                        "Cannot link device-login-idp: no Keycloak user found for username '" + username + "'"));
-
-        String idpAlias = adminProperties.idpAlias();
-
-        if (hasFederatedIdentityLink(adminToken, keycloakUserId, idpAlias)) {
-            log.debug("User '{}' already has '{}' federated identity link", username, idpAlias);
-            return;
-        }
-
-        linkFederatedIdentity(adminToken, keycloakUserId, username, idpAlias);
-        log.info("Created '{}' federated identity link for user '{}'", idpAlias, username);
     }
 
     /**
@@ -223,6 +197,54 @@ public class KeycloakAdminClient {
         log.info("Password set for user '{}'", keycloakUserId);
     }
 
+    /**
+     * Creates a device-login credential for a Keycloak user.
+     * Uses the Admin REST API: POST /admin/realms/{realm}/users/{id}/credentials
+     *
+     * @param keycloakUserId the Keycloak-internal user UUID
+     * @param publicKey the public key for signature verification (stored in credentialData)
+     * @param publicKeyHash SHA-256 hash of the public key (hex encoded)
+     * @param deviceName user-defined device name (shown in Keycloak Account Console as userLabel)
+     * @param encPubKey encrypted public key (NOT stored in Keycloak - stored in DB Device.encPubKey)
+     * @param encPrivKey encrypted private key (stored in secretData)
+     */
+    public void createDeviceCredential(String keycloakUserId, String publicKey, String publicKeyHash,
+            String deviceName, String encPubKey, String encPrivKey) {
+        String adminToken = getAdminToken();
+        String url = userUrl(keycloakUserId) + "/credentials";
+
+        Map<String, Object> credentialData = Map.of(
+                "publicKey", publicKey,
+                "publicKeyHash", publicKeyHash
+        );
+
+        Map<String, Object> secretData = Map.of(
+                "encPrivKey", encPrivKey
+        );
+
+        Map<String, Object> credential = Map.of(
+                "type", "device-login",
+                "userLabel", deviceName,
+                "credentialData", credentialData,
+                "secretData", secretData,
+                "temporary", false
+        );
+
+        restClient.post()
+                .uri(url)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(credential)
+                .retrieve()
+                .onStatus(status -> !status.is2xxSuccessful(), (req, resp) -> {
+                    throw new KeycloakUpstreamException(
+                            "Failed to create device credential for user '" + keycloakUserId + "': " + resp.getStatusCode());
+                })
+                .toBodilessEntity();
+
+        log.info("Created device-login credential '{}' for user '{}'", deviceName, keycloakUserId);
+    }
+
     // -----------------------------------------------------------------------
     // Private helpers
     // -----------------------------------------------------------------------
@@ -268,7 +290,7 @@ public class KeycloakAdminClient {
      *
      * @return the Keycloak user ID (UUID string), whether newly created or pre-existing
      */
-    private String createUser(String adminToken, String userId, String displayName) {
+    private String createUserInternal(String adminToken, String userId, String displayName) {
         var userRepresentation = new java.util.HashMap<String, Object>();
         userRepresentation.put("username", userId);
         userRepresentation.put("enabled", true);

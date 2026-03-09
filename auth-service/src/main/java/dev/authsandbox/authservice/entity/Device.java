@@ -19,19 +19,20 @@ public class Device {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(name = "device_id", nullable = false, unique = true)
-    private String deviceId;
-
-    /** The pre-provisioned user identifier from the registration_codes table. */
-    @Column(name = "user_id", nullable = false, unique = true)
+    @Column(name = "user_id", nullable = false)
     private String userId;
 
-    /** The human-readable display name from the registration_codes table. */
-    @Column(name = "name", nullable = false)
-    private String name;
+    @Column(name = "device_name", nullable = false)
+    private String deviceName;
+
+    @Column(name = "public_key_hash", length = 64)
+    private String publicKeyHash;
 
     @Column(name = "public_key", nullable = false, columnDefinition = "TEXT")
     private String publicKey;
+
+    @Column(name = "enc_pub_key", columnDefinition = "TEXT")
+    private String encPubKey;
 
     @Column(name = "keycloak_user_id", length = 36)
     private String keycloakUserId;

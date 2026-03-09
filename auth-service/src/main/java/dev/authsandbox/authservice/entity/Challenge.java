@@ -19,10 +19,10 @@ public class Challenge {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(name = "device_id", nullable = false)
-    private String deviceId;
+    @Column(name = "user_id", nullable = false)
+    private String userId;
 
-    @Column(name = "challenge_value", nullable = false, columnDefinition = "TEXT")
+    @Column(name = "challenge_value", columnDefinition = "TEXT")
     private String challengeValue;
 
     @Column(name = "nonce", nullable = false, unique = true)
