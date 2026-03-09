@@ -46,14 +46,14 @@ class RegistrationCodeServiceTest {
     void createRegistrationCode_createsKeycloakUserAndPersistsCode() {
         when(registrationCodeRepository.findByUserId("alice")).thenReturn(Optional.empty());
         when(keycloakAdminClient.getUserIdByUsername("alice")).thenReturn(Optional.empty());
-        when(keycloakAdminClient.createUserWithFederatedIdentity("alice", "Alice Smith")).thenReturn("kc-uuid-alice");
+        when(keycloakAdminClient.createUser("alice", "Alice Smith")).thenReturn("kc-uuid-alice");
         when(registrationCodeRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         registrationCodeService.createRegistrationCode(
                 new CreateRegistrationCodeRequest("alice", "Alice Smith", "plain-secret", null));
 
         // Keycloak user must be created at provisioning time.
-        verify(keycloakAdminClient).createUserWithFederatedIdentity("alice", "Alice Smith");
+        verify(keycloakAdminClient).createUser("alice", "Alice Smith");
 
         ArgumentCaptor<RegistrationCode> captor = ArgumentCaptor.forClass(RegistrationCode.class);
         verify(registrationCodeRepository).save(captor.capture());
@@ -69,7 +69,7 @@ class RegistrationCodeServiceTest {
     void createRegistrationCode_defaultValidityIs90Days() {
         when(registrationCodeRepository.findByUserId("alice")).thenReturn(Optional.empty());
         when(keycloakAdminClient.getUserIdByUsername("alice")).thenReturn(Optional.empty());
-        when(keycloakAdminClient.createUserWithFederatedIdentity("alice", "Alice")).thenReturn("kc-uuid-alice");
+        when(keycloakAdminClient.createUser("alice", "Alice")).thenReturn("kc-uuid-alice");
         when(registrationCodeRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         OffsetDateTime before = OffsetDateTime.now();
@@ -90,7 +90,7 @@ class RegistrationCodeServiceTest {
     void createRegistrationCode_usesCustomValidityWindow() {
         when(registrationCodeRepository.findByUserId("bob")).thenReturn(Optional.empty());
         when(keycloakAdminClient.getUserIdByUsername("bob")).thenReturn(Optional.empty());
-        when(keycloakAdminClient.createUserWithFederatedIdentity("bob", "Bob")).thenReturn("kc-uuid-bob");
+        when(keycloakAdminClient.createUser("bob", "Bob")).thenReturn("kc-uuid-bob");
         when(registrationCodeRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         OffsetDateTime before = OffsetDateTime.now();
@@ -224,11 +224,11 @@ class RegistrationCodeServiceTest {
                 .expiresAt(expires).build();
         when(registrationCodeRepository.findAll()).thenReturn(List.of(unsynced));
         when(keycloakAdminClient.getUserIdByUsername("frank")).thenReturn(Optional.empty());
-        when(keycloakAdminClient.createUserWithFederatedIdentity("frank", "Frank")).thenReturn("kc-uuid-frank");
+        when(keycloakAdminClient.createUser("frank", "Frank")).thenReturn("kc-uuid-frank");
 
         SyncResult result = registrationCodeService.syncKeycloakUsers();
 
-        verify(keycloakAdminClient).createUserWithFederatedIdentity("frank", "Frank");
+        verify(keycloakAdminClient).createUser("frank", "Frank");
         assertThat(result.synced()).isEqualTo(1);
         assertThat(result.alreadySynced()).isEqualTo(0);
         assertThat(result.failed()).isEqualTo(0);
@@ -245,7 +245,7 @@ class RegistrationCodeServiceTest {
 
         SyncResult result = registrationCodeService.syncKeycloakUsers();
 
-        verify(keycloakAdminClient, never()).createUserWithFederatedIdentity(any(), any());
+        verify(keycloakAdminClient, never()).createUser(any(), any());
         assertThat(result.synced()).isEqualTo(0);
         assertThat(result.alreadySynced()).isEqualTo(1);
         assertThat(result.failed()).isEqualTo(0);
@@ -263,9 +263,9 @@ class RegistrationCodeServiceTest {
         when(registrationCodeRepository.findAll()).thenReturn(List.of(failing, succeeding));
         when(keycloakAdminClient.getUserIdByUsername("henry")).thenReturn(Optional.empty());
         when(keycloakAdminClient.getUserIdByUsername("iris")).thenReturn(Optional.empty());
-        when(keycloakAdminClient.createUserWithFederatedIdentity("henry", "Henry"))
+        when(keycloakAdminClient.createUser("henry", "Henry"))
                 .thenThrow(new RuntimeException("Keycloak unavailable"));
-        when(keycloakAdminClient.createUserWithFederatedIdentity("iris", "Iris")).thenReturn("kc-uuid-iris");
+        when(keycloakAdminClient.createUser("iris", "Iris")).thenReturn("kc-uuid-iris");
 
         SyncResult result = registrationCodeService.syncKeycloakUsers();
 

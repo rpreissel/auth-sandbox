@@ -37,20 +37,20 @@ public class DeviceManagementService {
                 keycloakAdminClient.deleteUser(device.getKeycloakUserId());
             } catch (Exception ex) {
                 log.warn("Failed to delete Keycloak user '{}' for device '{}': {}",
-                        device.getKeycloakUserId(), device.getDeviceId(), ex.getMessage());
+                        device.getKeycloakUserId(), device.getDeviceName(), ex.getMessage());
             }
         }
 
         deviceRepository.delete(device);
-        log.info("Deleted device id='{}' deviceId='{}'", id, device.getDeviceId());
+        log.info("Deleted device id='{}' deviceName='{}'", id, device.getDeviceName());
     }
 
     private AdminDeviceResponse toResponse(Device d) {
         return new AdminDeviceResponse(
                 d.getId(),
-                d.getDeviceId(),
                 d.getUserId(),
-                d.getName(),
+                d.getDeviceName(),
+                d.getPublicKeyHash(),
                 d.getKeycloakUserId(),
                 d.getCreatedAt(),
                 d.getUpdatedAt()

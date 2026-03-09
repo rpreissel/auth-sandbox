@@ -40,7 +40,7 @@ public class RegistrationCodeService {
         }
 
         if (keycloakAdminClient.getUserIdByUsername(request.userId()).isEmpty()) {
-            keycloakAdminClient.createUserWithFederatedIdentity(request.userId(), request.name());
+            keycloakAdminClient.createUser(request.userId(), request.name());
         } else {
             log.debug("Keycloak user already exists for userId='{}', skipping creation", request.userId());
         }
@@ -94,7 +94,7 @@ public class RegistrationCodeService {
                     alreadySynced++;
                     log.debug("Sync: Keycloak user already exists for userId='{}'", code.getUserId());
                 } else {
-                    keycloakAdminClient.createUserWithFederatedIdentity(code.getUserId(), code.getName());
+                    keycloakAdminClient.createUser(code.getUserId(), code.getName());
                     synced++;
                     log.info("Sync: created Keycloak user for userId='{}'", code.getUserId());
                 }

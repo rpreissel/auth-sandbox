@@ -34,25 +34,24 @@ class DeviceManagementServiceTest {
 
     @Test
     void listDevices_returnsAllEntries() {
-        Device d1 = Device.builder().deviceId("dev-1").userId("u1").name("Device 1").build();
-        Device d2 = Device.builder().deviceId("dev-2").userId("u2").name("Device 2").build();
+        Device d1 = Device.builder().userId("u1").deviceName("Pixel 8").publicKeyHash("hash1").build();
+        Device d2 = Device.builder().userId("u2").deviceName("MacBook").publicKeyHash("hash2").build();
         when(deviceRepository.findAll()).thenReturn(List.of(d1, d2));
 
         List<AdminDeviceResponse> result = deviceManagementService.listDevices();
 
         assertThat(result).hasSize(2);
-        assertThat(result).extracting(AdminDeviceResponse::deviceId)
-                .containsExactly("dev-1", "dev-2");
+        assertThat(result).extracting(AdminDeviceResponse::deviceName)
+                .containsExactly("Pixel 8", "MacBook");
     }
 
     @Test
     void deleteDevice_deletesDeviceAndKeycloakUser() {
         UUID id = UUID.randomUUID();
         Device device = Device.builder()
-                .deviceId("dev-001")
                 .userId("user-001")
-                .name("My Phone")
-                .publicKey("pem")
+                .deviceName("My Phone")
+                .publicKeyHash("hash1")
                 .keycloakUserId("kc-uuid-001")
                 .build();
         when(deviceRepository.findById(id)).thenReturn(Optional.of(device));
@@ -67,10 +66,9 @@ class DeviceManagementServiceTest {
     void deleteDevice_continuesIfKeycloakUserDeletionFails() {
         UUID id = UUID.randomUUID();
         Device device = Device.builder()
-                .deviceId("dev-002")
                 .userId("user-002")
-                .name("Tablet")
-                .publicKey("pem")
+                .deviceName("Tablet")
+                .publicKeyHash("hash2")
                 .keycloakUserId("kc-uuid-002")
                 .build();
         when(deviceRepository.findById(id)).thenReturn(Optional.of(device));
@@ -94,10 +92,9 @@ class DeviceManagementServiceTest {
     void deleteDevice_deletesDeviceEvenWithoutKeycloakUserId() {
         UUID id = UUID.randomUUID();
         Device device = Device.builder()
-                .deviceId("dev-003")
                 .userId("user-003")
-                .name("Old Device")
-                .publicKey("pem")
+                .deviceName("Old Device")
+                .publicKeyHash("hash3")
                 .keycloakUserId(null)
                 .build();
         when(deviceRepository.findById(id)).thenReturn(Optional.of(device));

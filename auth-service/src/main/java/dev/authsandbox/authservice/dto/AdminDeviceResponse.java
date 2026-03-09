@@ -5,9 +5,9 @@ import java.util.UUID;
 
 public record AdminDeviceResponse(
         UUID id,
-        String deviceId,
         String userId,
-        String name,
+        String deviceName,
+        String publicKeyHash,
         String keycloakUserId,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt

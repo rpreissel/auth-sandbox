@@ -12,7 +12,12 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.nio.charset.StandardCharsets;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.NoSuchAlgorithmException;
 import java.time.OffsetDateTime;
+import java.util.Base64;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -28,6 +33,18 @@ class DeviceServiceTest {
     @Mock private KeycloakAdminClient keycloakAdminClient;
 
     private DeviceService deviceService;
+
+    private static KeyPair RSA_KEY_PAIR;
+
+    static {
+        try {
+            KeyPairGenerator gen = KeyPairGenerator.getInstance("RSA");
+            gen.initialize(2048);
+            RSA_KEY_PAIR = gen.generateKeyPair();
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
     @BeforeEach
     void setUp() {
@@ -50,7 +67,7 @@ class DeviceServiceTest {
         when(registrationCodeRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         RegisterDeviceResponse response = deviceService.registerDevice(
-                new RegisterDeviceRequest("alice", "Pixel 8", plainCode, "pubkey"));
+                new RegisterDeviceRequest("alice", "Pixel 8", plainCode, pemPublicKey()));
 
         assertThat(response.deviceName()).isEqualTo("Pixel 8");
 
@@ -74,7 +91,7 @@ class DeviceServiceTest {
         when(registrationCodeRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         RegisterDeviceResponse response = deviceService.registerDevice(
-                new RegisterDeviceRequest("deleted-user", "Pixel 9", "secret", "pubkey"));
+                new RegisterDeviceRequest("deleted-user", "Pixel 9", "secret", pemPublicKey()));
 
         assertThat(response.deviceName()).isEqualTo("Pixel 9");
         verify(keycloakAdminClient).createUser("deleted-user", "Pixel 9");
@@ -93,7 +110,7 @@ class DeviceServiceTest {
         when(registrationCodeRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         deviceService.registerDevice(
-                new RegisterDeviceRequest("bob", "MacBook", plainCode, "pubkey"));
+                new RegisterDeviceRequest("bob", "MacBook", plainCode, pemPublicKey()));
 
         verify(keycloakAdminClient).createDeviceCredential(any(), any(), any(), any(), any(), any());
 
@@ -113,7 +130,7 @@ class DeviceServiceTest {
 
         assertThatThrownBy(() ->
                 deviceService.registerDevice(
-                        new RegisterDeviceRequest("charlie", "Pixel", "secret", "pubkey")))
+                        new RegisterDeviceRequest("charlie", "Pixel", "secret", pemPublicKey())))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Unknown userId");
 
@@ -127,7 +144,7 @@ class DeviceServiceTest {
 
         assertThatThrownBy(() ->
                 deviceService.registerDevice(
-                        new RegisterDeviceRequest("nobody", "Pixel", "secret", "pubkey")))
+                        new RegisterDeviceRequest("nobody", "Pixel", "secret", pemPublicKey())))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Unknown userId");
     }
@@ -143,7 +160,7 @@ class DeviceServiceTest {
 
         assertThatThrownBy(() ->
                 deviceService.registerDevice(
-                        new RegisterDeviceRequest("eve", "Pixel", "wrong-secret", "pubkey")))
+                        new RegisterDeviceRequest("eve", "Pixel", "wrong-secret", pemPublicKey())))
                 .isInstanceOf(SecurityException.class);
     }
 
@@ -155,7 +172,7 @@ class DeviceServiceTest {
 
         assertThatThrownBy(() ->
                 deviceService.registerDevice(
-                        new RegisterDeviceRequest("frank", "My Device", "secret", "pubkey")))
+                        new RegisterDeviceRequest("frank", "My Device", "secret", pemPublicKey())))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("already exists");
     }
@@ -163,6 +180,13 @@ class DeviceServiceTest {
     // -----------------------------------------------------------------------
     // Helpers
     // -----------------------------------------------------------------------
+
+    private String pemPublicKey() {
+        byte[] encoded = RSA_KEY_PAIR.getPublic().getEncoded();
+        return "-----BEGIN PUBLIC KEY-----\n"
+                + Base64.getMimeEncoder(64, "\n".getBytes(StandardCharsets.UTF_8)).encodeToString(encoded)
+                + "\n-----END PUBLIC KEY-----";
+    }
 
     private RegistrationCode activeCode(String userId, String plainCode, int useCount) {
         return RegistrationCode.builder()

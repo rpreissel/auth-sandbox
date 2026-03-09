@@ -1,0 +1,21 @@
+{
+  "sessionID": "ses_330a97938ffeINqLIpC8jVBuUa",
+  "blocks": {
+    "goal": {
+      "value": "16 Beads für Credential-basierten Login-Flow (deviceId entfernt, deviceName, login_token mit type-Feld + Conditional Authenticators).",
+      "charLimit": 1000,
+      "lastModified": "2026-03-09T06:13:32.000Z"
+    },
+    "progress": {
+      "value": "⏳ Beads noch nicht erstellt — unterbrochen durch Memory Pressure\n\n## Finaler Flow (vollständig besprochen, bereit zur Implementierung)\n\n### REGISTRIERUNG\n- App → Auth Service: deviceId, userId, name, activationCode, publicKey (PEM)\n- Auth Service: RegistrationCode validieren, Device speichern + publicKeyHash (SHA-256), RSA-2048 Keypair (encPrivKey, encPubKey) erzeugen, Keycloak Credential anlegen (credentialData: publicKey/publicKeyHash/deviceId/encPubKey; secretData: encPrivKey)\n- Response unverändert\n\n### LOGIN Schritt 1: startLogin\n- App → publicKeyHash\n- Auth Service: Device lookup via publicKeyHash, Credential lesen → encPubKey, payload={userId,nonce,exp} als JSON, Hybrid-Encrypt (AES-GCM + RSA-OAEP), nonce in Challenge-Tabelle\n- Response: encryptedKey, encryptedData, iv, nonce (Korrelations-ID)\n\n### LOGIN Schritt 2: verifyChallenge\n- App → nonce, encryptedKey, encryptedData, iv, signature (SHA256withRSA über encryptedData)\n- Auth Service: nonce lookup, used=false+exp prüfen, used=true, login_token = Base64-JSON {sub:userId, encryptedKey, encryptedData, iv, signature}, Auth Code Flow → Keycloak\n\n### Keycloak LoginTokenAuthenticator\n- login_token dekodieren, User via sub, Credential laden (encPrivKey+publicKey), Hybrid-Decrypt, payload parsen {userId,nonce,exp}, exp+userId+nonce(SingleUseObjectProvider)+signature prüfen, success()\n\n## Was entfällt\n- challengeValue (überall)\n- JWKS-Endpoint für Login Flow + issueKeycloakAssertionToken()\n- IDP device-login-idp + FederatedIdentity-Links\n- CachedJWKSet, JWKS-Fetch, trusted-client-ids, findIdpByIssuer()\n\n## Zu erstellende Beads\n1. [keycloak-ext] DeviceCredentialModel + DeviceCredentialProvider + Factory\n2. [keycloak-ext] LoginTokenAuthenticator umbauen (Credential-Lookup + Hybrid-Decrypt + Signatur)\n3. [auth-service] Flyway V11: public_key_hash auf devices, challenge_value optional\n4. [auth-service] Device Entity + DeviceRepository: publicKeyHash Feld + findByPublicKeyHash\n5. [auth-service] DeviceService: publicKeyHa",
+      "charLimit": 2000,
+      "lastModified": "2026-03-08T22:16:59.162Z"
+    },
+    "context": {
+      "value": "Projekt: /Users/rene/Develop/opencode/auth-sandbox\nSprache: Java 21, Spring Boot, Keycloak 26.5.0, Gradle\n\nKey files:\n- keycloak-extension/src/main/java/dev/authsandbox/keycloak/LoginTokenAuthenticator.java\n- keycloak-extension/src/main/java/dev/authsandbox/keycloak/LoginTokenAuthenticatorFactory.java\n- auth-service/src/main/java/dev/authsandbox/authservice/service/AuthService.java\n- auth-service/src/main/java/dev/authsandbox/authservice/service/DeviceService.java\n- auth-service/src/main/java/dev/authsandbox/authservice/service/JwtService.java\n- auth-service/src/main/java/dev/authsandbox/authservice/service/KeycloakAdminClient.java\n- auth-service/src/main/java/dev/authsandbox/authservice/entity/Device.java\n- auth-service/src/main/java/dev/authsandbox/authservice/entity/Challenge.java\n- auth-service/src/main/resources/db/migration/ (letzte Migration: V10)\n- auth-service/src/test/java/dev/authsandbox/authservice/service/AuthServiceTest.java\n- auth-service/src/test/java/dev/authsandbox/authservice/service/DeviceServiceTest.java\n\nBeads-Regel: bd create \"Titel\" --description=\"...\" -t feature|task -p 0-4\nNächster Schritt: Alle 13 Beads erstellen via bd create",
+      "charLimit": 1500,
+      "lastModified": "2026-03-08T22:17:04.661Z"
+    }
+  },
+  "updatedAt": "2026-03-09T06:13:32.000Z"
+}

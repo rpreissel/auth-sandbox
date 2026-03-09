@@ -1,5 +1,6 @@
 package dev.authsandbox.authservice.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.authsandbox.authservice.config.JwtProperties;
 import dev.authsandbox.authservice.config.KeycloakProperties;
 import dev.authsandbox.authservice.dto.InitRequest;
@@ -18,8 +19,10 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Map;
 import java.util.UUID;
 
@@ -36,6 +39,9 @@ public class TransferService {
     private final JwtProperties jwtProperties;
     private final KeycloakProperties keycloakProperties;
     private final TransferSessionRepository transferSessionRepository;
+    private final ObjectMapper objectMapper;
+
+    private static final String LOGIN_TOKEN_NOTE = "login_token";
 
     /**
      * Initiates a browser SSO transfer.
@@ -85,15 +91,13 @@ public class TransferService {
         // 2. Ensure the user has a sso-proxy-idp federated identity link
         keycloakAdminClient.ensureSsoProxyFederatedIdentityLink(userId);
 
-        // 3. Issue Keycloak assertion token (carry over ACR level)
-        String loginToken = jwtService.issueKeycloakAssertionToken(userId, acr);
-
-        // 4. Issue state JWT (carries targetUrl + nonce)
+        // 3. Issue state JWT (carries targetUrl + nonce)
         String stateJwt = jwtService.issueStateToken(request.targetUrl());
 
-        // 5. PAR → Keycloak — returns request_uri + PKCE code_verifier
+        // 4. PAR → Keycloak — returns request_uri + PKCE code_verifier
+        // Note: For SSO transfer, we pass empty login_token here; it's set in the auth session later
         PushedAuthorizationResponse par = keycloakTransferClient.pushAuthorizationRequest(
-                loginToken, stateJwt, keycloakProperties.callbackUri());
+                "", stateJwt, keycloakProperties.callbackUri());
 
         // 6. Persist code_verifier server-side; embed only the opaque session_id in the JWT.
         //    This prevents the code_verifier from appearing in any URL.

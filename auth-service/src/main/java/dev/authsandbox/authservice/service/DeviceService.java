@@ -53,13 +53,12 @@ public class DeviceService {
             throw new IllegalArgumentException("Device name already exists for this user");
         }
 
-        // --- 5. Calculate publicKeyHash -----------------------------------------
-        PublicKey publicKey = KeyLoader.parsePublicKey(request.publicKey());
-        String publicKeyHash = HexFormat.of().formatHex(
-                MessageDigest.getInstance("SHA-256").digest(publicKey.getEncoded()));
-
-        // --- 6. Generate RSA-2048 encryption keypair ---------------------------
+        // --- 5. Calculate publicKeyHash + Generate RSA-2048 encryption keypair ----
         try {
+            PublicKey publicKey = KeyLoader.parsePublicKey(request.publicKey());
+            String publicKeyHash = HexFormat.of().formatHex(
+                    MessageDigest.getInstance("SHA-256").digest(publicKey.getEncoded()));
+
             KeyPairGenerator gen = KeyPairGenerator.getInstance("RSA");
             gen.initialize(2048);
             KeyPair encKeyPair = gen.generateKeyPair();
