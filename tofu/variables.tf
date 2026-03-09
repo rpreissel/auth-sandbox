@@ -118,6 +118,12 @@ variable "admin_client_secret" {
   sensitive   = true
 }
 
+variable "admin_service_client_secret" {
+  description = "Client secret for admin-service (token introspection)."
+  type        = string
+  sensitive   = true
+}
+
 variable "admin_realm_id" {
   description = "Name / ID of the admin realm."
   type        = string

@@ -43,15 +43,15 @@ public class SecurityConfig {
                     "/api/v1/auth/**",
                     "/api/v1/transfer/**",
                     "/api/v1/users/me/**",
+                    "/api/v1/admin/**",
+                    "/api/v1/cms/**",
                     "/p/**",
                     "/cms/**",
                     "/actuator/health",
                     "/actuator/info"
                 ).permitAll()
-                .requestMatchers("/api/v1/admin/**", "/api/v1/cms/**").authenticated()
                 .anyRequest().authenticated()
-            )
-            .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> {}));
+            );
 
         return http.build();
     }

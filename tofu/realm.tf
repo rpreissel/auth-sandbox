@@ -553,6 +553,25 @@ resource "keycloak_openid_client" "admin_client" {
   web_origins = ["https://admin.localhost:8443"]
 }
 
+# ---------------------------------------------------------------------------
+# Client: admin-service  (for token introspection in admin-sandbox realm)
+# ---------------------------------------------------------------------------
+resource "keycloak_openid_client" "admin_service" {
+  realm_id  = keycloak_realm.admin_sandbox.id
+  client_id = "admin-service"
+  name      = "Admin Service"
+  enabled   = true
+
+  access_type = "CONFIDENTIAL"
+
+  standard_flow_enabled        = false
+  implicit_flow_enabled        = false
+  direct_access_grants_enabled = false
+  service_accounts_enabled     = false
+
+  client_secret = var.admin_service_client_secret
+}
+
 resource "keycloak_user" "admin_user" {
   realm_id = keycloak_realm.admin_sandbox.id
   username = var.keycloak_admin_username
