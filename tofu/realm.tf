@@ -158,8 +158,8 @@ resource "keycloak_openid_client" "device_login_client" {
   # This allows the flow binding below to reference the login_token_flow
   depends_on = [
     keycloak_authentication_flow.login_token_flow,
-    keycloak_authentication_execution.login_token_authenticator,
-    keycloak_authentication_execution_config.login_token_authenticator_config,
+    keycloak_authentication_execution.device_login_condition,
+    keycloak_authentication_execution_config.device_login_authenticator_config,
   ]
 
   authentication_flow_binding_overrides {

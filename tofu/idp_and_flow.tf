@@ -53,15 +53,21 @@ resource "keycloak_oidc_identity_provider" "device_login_idp" {
 # ---------------------------------------------------------------------------
 # Authentication Flow: Login Token Flow
 # ---------------------------------------------------------------------------
-# A custom browser-less flow that uses the LoginTokenAuthenticator SPI
-# execution. This flow is bound to the device-login-idp identity provider
-# so that Keycloak invokes the authenticator during the token exchange.
+# A custom flow that uses Conditional Authenticators to handle different
+# login token types (device vs sso):
 #
-# NOTE: The authenticator must be placed inside a sub-flow (not directly in
-# the top-level flow) so that Keycloak's AuthenticationFlowCallback mechanism
-# works correctly. DefaultAuthenticationFlow.checkAuthCallback() is only
-# triggered when a flow execution (isAuthenticatorFlow == true) transitions
-# to SUCCESS, which allows onParentFlowSuccess and onTopFlowSuccess to fire.
+# Structure:
+#   login-token-flow:
+#     - device-login-subflow (CONDITIONAL)
+#       - device-login-condition (device-login-condition)
+#       - login-token-authenticator (login-token-authenticator)
+#     - sso-login-subflow (CONDITIONAL)
+#       - sso-login-condition (sso-login-condition)
+#       - login-token-authenticator (login-token-authenticator)
+#
+# The condition authenticators check login_token.type field:
+#   - device-login-condition: true if type == "device"
+#   - sso-login-condition: true if type == "sso"
 # ---------------------------------------------------------------------------
 resource "keycloak_authentication_flow" "login_token_flow" {
   realm_id    = keycloak_realm.auth_sandbox.id
@@ -70,26 +76,69 @@ resource "keycloak_authentication_flow" "login_token_flow" {
   provider_id = "basic-flow"
 }
 
-resource "keycloak_authentication_subflow" "login_token_subflow" {
+# ── Device Login subflow ──────────────────────────────────────────────────
+resource "keycloak_authentication_subflow" "device_login_subflow" {
   realm_id          = keycloak_realm.auth_sandbox.id
   parent_flow_alias = keycloak_authentication_flow.login_token_flow.alias
-  alias             = "login-token-subflow"
+  alias             = "device-login-subflow"
   provider_id       = "basic-flow"
-  requirement       = "REQUIRED"
+  requirement       = "CONDITIONAL"
 }
 
-resource "keycloak_authentication_execution" "login_token_authenticator" {
+resource "keycloak_authentication_execution" "device_login_condition" {
   realm_id          = keycloak_realm.auth_sandbox.id
-  parent_flow_alias = "login-token-subflow"
+  parent_flow_alias = "device-login-subflow"
+  authenticator     = "device-login-condition"
+  requirement       = "REQUIRED"
+  depends_on        = [keycloak_authentication_subflow.device_login_subflow]
+}
+
+resource "keycloak_authentication_execution" "device_login_token_authenticator" {
+  realm_id          = keycloak_realm.auth_sandbox.id
+  parent_flow_alias = "device-login-subflow"
   authenticator     = "login-token-authenticator"
   requirement       = "REQUIRED"
-  depends_on        = [keycloak_authentication_subflow.login_token_subflow]
+  depends_on        = [keycloak_authentication_execution.device_login_condition]
 }
 
-resource "keycloak_authentication_execution_config" "login_token_authenticator_config" {
+resource "keycloak_authentication_execution_config" "device_login_authenticator_config" {
   realm_id     = keycloak_realm.auth_sandbox.id
-  execution_id = keycloak_authentication_execution.login_token_authenticator.id
-  alias        = "login token authenticator config"
+  execution_id = keycloak_authentication_execution.device_login_token_authenticator.id
+  alias        = "device login token authenticator config"
+  config = {
+    "trusted-client-ids" = var.device_login_client_id
+  }
+}
+
+# ── SSO Login subflow ─────────────────────────────────────────────────────
+resource "keycloak_authentication_subflow" "sso_login_subflow" {
+  realm_id          = keycloak_realm.auth_sandbox.id
+  parent_flow_alias = keycloak_authentication_flow.login_token_flow.alias
+  alias             = "sso-login-subflow"
+  provider_id       = "basic-flow"
+  requirement       = "CONDITIONAL"
+}
+
+resource "keycloak_authentication_execution" "sso_login_condition" {
+  realm_id          = keycloak_realm.auth_sandbox.id
+  parent_flow_alias = "sso-login-subflow"
+  authenticator     = "sso-login-condition"
+  requirement       = "REQUIRED"
+  depends_on        = [keycloak_authentication_subflow.sso_login_subflow]
+}
+
+resource "keycloak_authentication_execution" "sso_login_token_authenticator" {
+  realm_id          = keycloak_realm.auth_sandbox.id
+  parent_flow_alias = "sso-login-subflow"
+  authenticator     = "login-token-authenticator"
+  requirement       = "REQUIRED"
+  depends_on        = [keycloak_authentication_execution.sso_login_condition]
+}
+
+resource "keycloak_authentication_execution_config" "sso_login_authenticator_config" {
+  realm_id     = keycloak_realm.auth_sandbox.id
+  execution_id = keycloak_authentication_execution.sso_login_token_authenticator.id
+  alias        = "sso login token authenticator config"
   config = {
     "trusted-client-ids" = var.device_login_client_id
   }
